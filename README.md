@@ -175,4 +175,4 @@ MIT — see `LICENSE`.
 ᴍᴀᴅᴇ ɪɴ ʙʏ ᴘʀɪɴᴄᴇ ᴘʀᴇᴍᴜɪᴍ
 ᴇɴᴊᴏʏ ʏᴏᴜʀ ʙᴏᴛ ᴍᴜʟᴛɪ ᴅᴇᴠɪᴄᴇ🇻🇳
 ```
-<b>JUST ME PRINCE PREMIUM 👦🏾⭐ <\b>
+`JUST ME PRINCE PREMIUM 👦🏾⭐•`
