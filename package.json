@@ -1,5 +1,5 @@
 {
-  "name": "𝐏𝐑𝐈𝐍𝐂𝐄-𝐌𝐃",
+  "name": "princepremium",
   "version": "2.0.0",
   "description": "PRINCE-MD— Open-source WhatsApp bot with a multi-device pairing system, a plugin architecture, and a clean single-server web UI.",
   "main": "index.js",
