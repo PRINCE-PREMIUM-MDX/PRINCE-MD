@@ -15,7 +15,7 @@
 
 **sᴇssɪᴏɴ ɪᴅ💫**
 
-[![PRINCE PREMIUM SESSION](https://img.shields.io/badge/XTREME%20-XMD%20SESSION-25D366?style=for-the-badge&logo=whatsapp&logoColor=white)]
+[![PRINCE PREMIUM SESSION](https://img.shields.io/badge/PRINCE%20-MD%20SESSION-25D366?style=for-the-badge&logo=whatsapp&logoColor=white)]
 ---
 
 🧠 **ғᴇᴀᴛᴜʀᴇs**
@@ -24,26 +24,9 @@
 - 🔌 ᴅʏɴᴀᴍɪᴄ ᴘʟᴜɢɪɴ ʟᴏᴀᴅᴇʀ  
 - 🔐 ᴘʀɪᴠᴀᴛᴇ/ɢʀᴏᴜᴘ ᴄᴏᴍᴍᴀɴᴅs  
 - 🖥️ ᴄᴏɴsᴏʟᴇ ɪɴᴛᴇʀғᴀᴄᴇ & ʟɪᴠᴇ ʟᴏɢs  
-- ☁️ ᴅᴇᴘʟᴏʏᴀʙʟᴇ ᴏɴ ᴍᴜʟᴛɪᴘʟᴇ ᴘʟᴀᴛғᴏʀᴍs  
 
 ---
 
-🚀 **ᴏɴᴇ-ᴄʟɪᴄᴋ ᴅᴇᴘʟᴏʏ ᴏᴘᴛɪᴏɴs**
-
-⚡ ᴏᴘᴛɪʟɪɴᴋ
-[![Deploy with Optilink](https://img.shields.io/badge/Deploy%20Now-OptiLink-2ecc71?style=for-the-badge)]([https://optiklink.com/home])
-
-🌐 ʀᴇɴᴅᴇʀ
-
-[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/PRINCE-PREMIUM-MDX/PRINCE-MD)
-
-☁️ ᴋᴏʏᴇʙ
-
-[![Koyeb](https://img.shields.io/badge/Deploy-Koyeb-00C2FF?style=for-the-badge&logo=koyeb)](https://www.koyeb.com)
-
-🛰️ ᴛᴀʟᴋᴅʀᴏᴠᴇ
-
-[![Talkdrove](https://img.shields.io/badge/Deploy-Talkdrove-orange?style=for-the-badge)](#)
 
 🔄 ɢɪᴛʜᴜʙ ᴀᴄᴛɪᴏɴs
 ᴅᴇᴘʟᴏʏ ᴀᴜᴛᴏᴍᴀᴛɪᴄᴀʟʟʏ ᴜsɪɴɢ `.yml` ᴡᴏʀᴋғʟᴏᴡ ɪɴsɪᴅᴇ ɢɪᴛʜᴜʙ ᴀᴄᴛɪᴏɴs.
@@ -122,7 +105,7 @@ node .
 
 > *𝐌𝐀𝐃𝐄 𝐁𝐘 𝐏𝐑𝐈𝐍𝐂𝐄 𝐏𝐑𝐄𝐌𝐈𝐔𝐌*  
 > ᴄᴏɴᴛᴀᴄᴛ: `+243860885022`
-
+> JUST PRINCE PREMIUM ⭐
 ---
 
 *©️ 2026 – 𝐏𝐑𝐈𝐍𝐂𝐄-𝐌𝐃 | 𝐉𝐔𝐒𝐓 𝐏𝐑𝐈𝐍𝐂𝐄*
