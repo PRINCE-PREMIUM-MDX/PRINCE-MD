@@ -2,13 +2,13 @@
 <h1 align="center">PRINCE-MD</h1>
 
 <p align="center">
-  <img src="https://files.catbox.moe/d9ghms.jpg" width="300"/><br>
+  <img src="https://files.catbox.moe/ne8vy5.png" width="300"/><br>
   <b>ғᴀsᴛ, ᴘᴏᴡᴇʀғᴜʟ, ᴀɴᴅ sᴛʏʟɪsʜ ᴡʜᴀᴛsᴀᴘᴘ ʙᴏᴛ ʙᴜɪʟᴛ ғᴏʀ ғᴜɴ ᴀɴᴅ ᴘᴇʀғᴏʀᴍᴀɴᴄᴇ.</b>
 </p>
 
 <p align="center">
   <a href="https://github.com/PRINCE-PREMIUM-MDX/PRINCE-MD"><img src="https://img.shields.io/github/stars/PrinceMDX/PRINCE-MD?style=flat-square&color=yellow"></a>
-  <a href="https://github.com/PRINCE-PREMIUM-MDX/PRINCE-MDfork"><img src="https://img.shields.io/github/forks/PrinceMDX/PRINCE-MD?style=flat-square&color=lightblue"></a>
+  <a href="https://github.com/PRINCE-PREMIUM-MDX/PRINCE-MDfork"><img src="https://img.shields.io/github/forks/PrinceMDX/PRINCE-MD?style=flat-square&color=lightread"></a>
   <a href="https://whatsapp.com/channel/0029Vb8KrLcJpe8piGeSfH0i"><img src="https://img.shields.io/badge/WhatsApp-Channel-25D366?style=flat-square&logo=whatsapp"></a>
   <a href="https://github.com/PRINCE-PREMIUM-MDX"><img src="https://img.shields.io/badge/Dev-Prince Premium-blueviolet?style=flat-square"></a>
 </p>
