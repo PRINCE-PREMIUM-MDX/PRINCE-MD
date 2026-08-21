@@ -1,7 +1,7 @@
 {
   "name": "princepremium",
   "version": "2.0.0",
-  "description": "PRINCE-MD— Open-source WhatsApp bot with a multi-device pairing system, a plugin architecture, and a clean single-server web UI.",
+  "description": "Prince-MD- Open-source WhatsApp bot with a multi-device pairing system, a plugin architecture, and a clean single-server web UI.",
   "main": "index.js",
   "scripts": {
     "start": "node --expose-gc index.js"
@@ -34,6 +34,6 @@
     "baileys",
     "orion-md"
   ],
-  "author": "Prince Premium",
+  "author": "PrincePremium",
   "license": "MIT"
 }
