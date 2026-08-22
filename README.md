@@ -3,7 +3,7 @@
 <p align="center">
   <img src="https://files.catbox.moe/ne8vy5.png" width="300"/><br>
   
- *`ENJOY YOUR FREE BOT WHATSAPP`*🇻🇳
+                       🧍🇭🇹
   
 <p align="center">
   <a href="https://git.io/typing-svg">
