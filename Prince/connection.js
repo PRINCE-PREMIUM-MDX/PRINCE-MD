@@ -27,9 +27,9 @@ const welcomePlugin = require('../princepremium/welcome');
 const cmd = require('./cmd');
 const Group = require('./group');
   const images = [
-    'https://files.catbox.moe/ne8vy5.png
-    'https://files.catbox.moe/ne8vy5.png'
-  ]; 
+  'https://files.catbox.moe/ne8vy5.png',
+  'https://files.catbox.moe/ne8vy5.png'
+];
 
 Object.defineProperty(global, 'akira', {
     get: () => images[Math.floor(Math.random() * images.length)]
