@@ -2,8 +2,7 @@
 
 <p align="center">
   <img src="https://files.catbox.moe/ne8vy5.png'" width="300"/><br>
-  <b>𝐄𝐍𝐉𝐎𝐘 𝐘𝐎𝐔𝐑 𝐁𝐎𝐓 𝐌𝐔𝐋𝐓𝐈 𝐃𝐄𝐕𝐈𝐂𝐄, 𝐌𝐀𝐃𝐄 𝐁𝐘 𝐏𝐑𝐈𝐍𝐂𝐄 𝐏𝐑𝐄𝐌𝐈𝐔𝐌👦🏾🍀.</b>
-</p>
+  
 <p align="center">
   <a href="https://git.io/typing-svg">
     <img src="https://readme-typing-svg.demolab.com?font=Black+Ops+One&size=80&pause=1000&color=8A2BE2&center=true&vCenter=true&width=1000&height=200&lines=PRINCE-MD;VERSION+2026;BY+PRINCE+PREMIUM" alt="Typing SVG" />
