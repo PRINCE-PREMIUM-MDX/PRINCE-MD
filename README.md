@@ -2,9 +2,9 @@
 
 <p align="center">
   <img src="https://files.catbox.moe/ne8vy5.png" width="300"/><br>
-  <b>ғᴀsᴛ, ᴘᴏᴡᴇʀғᴜʟ, ᴀɴᴅ sᴛʏʟɪsʜ ᴡʜᴀᴛsᴀᴘᴘ ʙᴏᴛ ʙᴜɪʟᴛ ғᴏʀ ғᴜɴ ᴀɴᴅ ᴘᴇʀғᴏʀᴍᴀɴᴄᴇ.</b>⚡
+  <p align="center">
+  <img src="https://capsule-render.vercel.app/api?type=waving&color=0:00c6ff,50:7b2ff7,100:ff6b6b&height=220&section=header&text=👋%20Dawens%20%7C%20INCONNU%20BOY%20SENSEI&fontSize=50&fontAlignY=38&animation=fadeIn&fontColor=white&desc=Developer%20%7C%20Bot%20Creator%20%7C%20Open%20Source&descAlignY=60&descSize=18"/>
 </p>
-
 This repository is meant to be forked. The codebase is organized so you can find, understand, and extend any part of it without digging through one giant file.
 
 ```
