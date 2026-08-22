@@ -967,7 +967,7 @@ async function setupCommandHandlers(socket, number) {
                     if (targetUrl) {
                         const buttonMessage = {
                             text: `*🎥 Video Selected!*\n\n🔗 ${targetUrl}\n\n> *Choose the video quality you want below:*`,
-                            footer: 'BY INCONNU BOY',
+                            footer: 'BY PRINCE PREMIUM',
                             buttons: [
                                 { buttonId: `.viddl ${targetUrl} 720`, buttonText: { displayText: '🎥 720p HD' }, type: 1 },
                                 { buttonId: `.viddl ${targetUrl} 480`, buttonText: { displayText: '🎞️ 480p' }, type: 1 },
@@ -1179,7 +1179,7 @@ try {
 
       const headerBlock =
 `*╭┈───〔 ${botName} 〕┈───⊷*
-*├⬗ Botname:* ${pushname}
+*├⬗ USER:* ${pushname}
 *├⬗ Mode:* ${sessionConfig.MODE || "public"}
 *├⬗ Date:* ${slDate}
 *├⬗ Time:* ${slTimeNow}
@@ -1295,7 +1295,7 @@ ${categoryBlocks}
       const ms    = Date.now() - start;
 
       await socket.sendMessage(sender, {
-        text: `🏓 Pong! ${ms}ms`
+        text: `🍀 Pong! ${ms}ms`
       }, { quoted: msg });
 
       break;
@@ -1450,7 +1450,7 @@ case 'playvid': {
             const url = query.match(/(https?:\/\/(?:www\.)?(?:youtube\.com\/(?:watch\?v=|shorts\/)|youtu\.be\/)[^\s?#]+)/i)[0];
             const buttonMessage = {
                 text: `*🎥 Video Link Detected!*\n\n🔗 ${url}\n\n> *Choose the video quality you want below:*`,
-                footer: 'BY INCONNU BOY',
+                footer: 'BY PRINCE PREMIUM',
                 buttons: [
                     { buttonId: `.viddl ${url} 720`, buttonText: { displayText: '🎥 720p HD' }, type: 1 },
                     { buttonId: `.viddl ${url} 480`, buttonText: { displayText: '🎞️ 480p' }, type: 1 },
@@ -2703,7 +2703,7 @@ case 'lvcal': {
         else if (percentage >= 30) hearts = '💖💖';
         else hearts = '💖';
 
-        let shipText = `*↳ ❝ [ORION MD] ¡! ❞*\n\n`;
+        let shipText = `*↳ ❝ [PRINCE MD] ¡! ❞*\n\n`;
         shipText += `*${name1}* 💑 *${name2}*\n\n`;
         shipText += `${hearts}\n`;
         shipText += `*Love Percentage:* ${percentage}%\n\n`;
