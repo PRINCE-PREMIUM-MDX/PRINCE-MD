@@ -1,7 +1,7 @@
 # PRINCE-MD⭐
 
 <p align="center">
-  <img src="https://files.catbox.moe/ne8vy5.png'" width="300"/><br>
+  <img src="https://files.catbox.moe/ne8vy5.png" width="300"/><br>
   
 <p align="center">
   <a href="https://git.io/typing-svg">
