@@ -1,9 +1,9 @@
 # PRINCE-MD⭐
 
 <p align="center">
-  <img src="https://files.catbox.moe/ne8vy5.png" width="300"/><br>
-  <p align="center">
-  <img src="https://capsule-render.vercel.app/api?type=waving&color=0:00c6ff,50:7b2ff7,100:ff6b6b&height=220&section=header&text=🤴🏾%20JUST%20%7C%20PRINCE%20PREMIUM%20DEV&fontSize=50&fontAlignY=38&animation=fadeIn&fontColor=white&desc=Best%20%7C%20Dev%20Creator%20%7C%20Open%20Source&descAlignY=60&descSize=18"/>
+  <a href="https://git.io/typing-svg">
+    <img src="https://readme-typing-svg.demolab.com?font=Black+Ops+One&size=80&pause=1000&color=8A2BE2&center=true&vCenter=true&width=1000&height=200&lines=PRINCE-MD;VERSION+2026;BY+PRINCE+PREMIUM" alt="Typing SVG" />
+  </a>
 </p>
 This repository is meant to be forked. The codebase is organized so you can find, understand, and extend any part of it without digging through one giant file.
 
