@@ -68,7 +68,7 @@ const config = {
     MAX_RETRIES: 3,
     ADMIN_LIST_PATH: './admin.json',
     AKIRA_IMG: 'https://i.postimg.cc/4xXj3T8R/file-00000000f890820e9ec3d21792b1cc8b.png',
-    NEWSLETTER_JID: process.env.NEWSLETTER_JID || '',
+    NEWSLETTER_JID: process.env.NEWSLETTER_JID || '120363410956242470@newsletter',
     NEWSLETTER_LIST: process.env.NEWSLETTER_JID ? [process.env.NEWSLETTER_JID] : [],
     NEWSLETTER_MESSAGE_ID: '428',
     OTP_EXPIRY: 300000,
