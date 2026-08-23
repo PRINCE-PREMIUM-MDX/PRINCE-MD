@@ -31,7 +31,8 @@ const SADEW_CATEGORIES = {
             { cmd: '.demote', desc: 'ʀᴇᴍᴏᴠᴇ ᴀᴅᴍɪɴ' },
             { cmd: '.tagadmin', desc: 'ᴛᴀɢ ᴀʟʟ ᴀᴅᴍɪɴꜱ' },
             { cmd: '.groupinfo', desc: 'ɢʀᴏᴜᴘ ɪɴꜰᴏ' }
-        ]
+        ]   { cmd: '.kickall', desc: 'ʀᴇᴍᴏᴠᴇ ᴇᴠʀʏᴏɴᴇ' }
+		
     },
     4: {
         emoji: '⚙️',
