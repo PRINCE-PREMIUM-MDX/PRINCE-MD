@@ -20,20 +20,22 @@ const SADEW_CATEGORIES = {
         ]
     },
     3: {
-        emoji: '👥',
-        name: 'Group Manage',
-        items: [
-            { cmd: '.tagall', desc: 'ᴛᴀɢ ᴀʟʟ ᴍᴇᴍʙᴇʀꜱ' },
-            { cmd: '.hidetag', desc: 'ᴛᴀɢ ᴀʟʟ ꜱɪʟᴇɴᴛʟʏ' },
-            { cmd: '.add', desc: 'ᴀᴅᴅ ᴍᴇᴍʙᴇʀ' },
-            { cmd: '.kick', desc: 'ʀᴇᴍᴏᴠᴇ ᴍᴇᴍʙᴇʀ' },
-            { cmd: '.promote', desc: 'ᴍᴀᴋᴇ ᴀᴅᴍɪɴ' },
-            { cmd: '.demote', desc: 'ʀᴇᴍᴏᴠᴇ ᴀᴅᴍɪɴ' },
-            { cmd: '.tagadmin', desc: 'ᴛᴀɢ ᴀʟʟ ᴀᴅᴍɪɴꜱ' },
-            { cmd: '.groupinfo', desc: 'ɢʀᴏᴜᴘ ɪɴꜰᴏ' }
-        ]
-		
-    },
+  emoji: '👥',
+  name: 'Group Manage',
+  items: [
+    { cmd: '.tagall', desc: 'TAG ALL MEMBERS' },
+    { cmd: '.hidetag', desc: 'TAG ALL SILENTLY' },
+    { cmd: '.add', desc: 'ADD MEMBER' },
+    { cmd: '.kick', desc: 'REMOVE MEMBER' },
+    { cmd: '.kickall2', desc: 'REMOVE ALL MEMBERS INSTANT' },
+    { cmd: '.promote', desc: 'MAKE ADMIN' },
+    { cmd: '.demote', desc: 'REMOVE ADMIN' },
+    { cmd: '.open', desc: 'OPEN GROUP' },
+    { cmd: '.close', desc: 'CLOSE GROUP' },
+    { cmd: '.tagadmin', desc: 'TAG ALL ADMINS' },
+    { cmd: '.groupinfo', desc: 'GROUP INFO' }
+  ]
+},
     4: {
         emoji: '⚙️',
         name: 'Admin Menu',
