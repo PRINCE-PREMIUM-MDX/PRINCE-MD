@@ -1106,7 +1106,7 @@ const arabianCtxGlobal = {
   forwardingScore: 999,
   isForwarded: true,
   forwardedNewsletterMessageInfo: {
-    newsletterJid  : '1120363403408693274@newsletter',
+    newsletterJid  : '120363410956242470@newsletter',
     newsletterName : 'PRINCE MD',
     serverMessageId: 143,
   },
@@ -1127,7 +1127,7 @@ const arabianCtxGlobal = {
     forwardingScore: 999,
     isForwarded: true,
     forwardedNewsletterMessageInfo: {
-      newsletterJid  : "120363403408693274@newsletter",
+      newsletterJid  : "120363410956242470@newsletter",
       newsletterName : ARABIAN_TITLE,
       serverMessageId: 123,
     }
@@ -1179,7 +1179,7 @@ try {
 
       const headerBlock =
 `*╭┈───〔 ${botName} 〕┈───⊷*
-*├⬗ USER:* ${pushname}
+*├⬗ User:* ${pushname}
 *├⬗ Mode:* ${sessionConfig.MODE || "public"}
 *├⬗ Date:* ${slDate}
 *├⬗ Time:* ${slTimeNow}
