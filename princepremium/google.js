@@ -75,7 +75,7 @@ module.exports = {
                     }
 
                 } catch (ssError) {
-                    console.error("[ORION-MD GOOGLE] Screenshot API 1 Failed. Trying Fallback...", ssError.message);
+                    console.error("[PRINCE-MD GOOGLE] Screenshot API 1 Failed. Trying Fallback...", ssError.message);
                     
                     try {
                         const fallbackUrl = `https://api.microlink.io/?url=${encodeURIComponent(alternativeSearchUrl)}&screenshot=true&meta=false`;
