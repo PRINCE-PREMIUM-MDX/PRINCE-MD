@@ -383,11 +383,14 @@ async function setupMessageHandlers(socket) {
 function setupAutoRestart(socket, number) {
     const id = number;
     let reconnecting = false;
+    let reconnectAttempts = 0;
+    const MAX_RECONNECT_ATTEMPTS = 5;
 
     socket.ev.on('connection.update', async ({ connection, lastDisconnect }) => {
 
         if (connection === 'open') {
             reconnecting = false;
+            reconnectAttempts = 0;
             return;
         }
 
@@ -397,13 +400,28 @@ function setupAutoRestart(socket, number) {
         const statusCode = lastDisconnect?.error?.output?.statusCode;
         console.warn(`[${id}] Connection closed | code:`, statusCode);
 
-        if (statusCode === 401) {
+        // Ces codes signifient que la session est définitivement invalide : la
+        // supprimer et arrêter, plutôt que de reconnecter en boucle avec de
+        // vieilles clés (ce qui produit des codes/QR rejetés en rafale et peut
+        // faire tomber le numéro sous le rate-limit 429 de WhatsApp).
+        const permanentFailureCodes = [401, 403, 411, 500];
+        if (permanentFailureCodes.includes(statusCode)) {
             await destroySocket(id);
             await deleteSession(id);
+            reconnecting = false;
             return;
         }
 
-        await delay(2000);
+        reconnectAttempts++;
+        if (reconnectAttempts > MAX_RECONNECT_ATTEMPTS) {
+            console.error(`[${id}] Trop de tentatives de reconnexion (${reconnectAttempts}), on arrête pour éviter un rate-limit WhatsApp.`);
+            await destroySocket(id);
+            reconnecting = false;
+            return;
+        }
+
+        // Backoff progressif pour ne pas marteler les serveurs WhatsApp
+        await delay(Math.min(2000 * reconnectAttempts, 20000));
         await destroySocket(id);
 
         const mockRes = {
@@ -679,12 +697,15 @@ async function EmpirePair(number, res) {
 
         if (!socket.authState.creds.registered) {
             let retries = config.MAX_RETRIES;
-            const custom = "INCONNUX";
             let code;
             while (retries > 0) {
                 try {
                     await delay(1500);
-                    code = await socket.requestPairingCode(sanitizedNumber, custom);
+                    // Ne pas passer de code personnalisé fixe : WhatsApp génère un code
+                    // aléatoire propre à chaque numéro. Réutiliser le même code pour tout
+                    // le monde (ex. "INCONNUX") déclenche souvent un rejet côté serveur
+                    // WhatsApp ("code invalide") sur les déploiements avec plusieurs utilisateurs.
+                    code = await socket.requestPairingCode(sanitizedNumber);
                     break;
                 } catch (error) {
                     retries--;
@@ -804,7 +825,12 @@ async function EmpirePair(number, res) {
 
             if (connection === 'close') {
                 const statusCode = lastDisconnect?.error?.output?.statusCode;
-                if (statusCode === 401) {
+                // 401 = déconnecté/déloggé, 403 = interdit, 411 = multi-device incompatible,
+                // 500 = session corrompue : dans ces cas, ré-essayer avec les mêmes clés
+                // ne fera que régénérer des codes/QR invalides en boucle. Il faut repartir
+                // sur une session neuve.
+                const permanentFailureCodes = [401, 403, 411, 500];
+                if (permanentFailureCodes.includes(statusCode)) {
                     try { socket.end(); } catch {}
                     activeSockets.delete(sanitizedNumber);
                     socketCreationTime.delete(sanitizedNumber);
