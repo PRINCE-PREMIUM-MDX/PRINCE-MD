@@ -776,11 +776,12 @@
     goToQrResultStep();
   });
   document.getElementById('editQrNumber').addEventListener('click', goToQrNumberStep);
-  function renderPairingCode(){
-    const raw = randomCode(8, 'ABCDEFGHJKLMNPQRSTUVWXYZ0123456789');
+  function renderPairingCodeDisplay(raw){
+    raw = String(raw).replace(/[^A-Z0-9]/gi, '').toUpperCase();
     const wrap = document.getElementById('codeDisplay');
     wrap.innerHTML = '';
-    [raw.slice(0,4), raw.slice(4,8)].forEach(group => {
+    const mid = Math.ceil(raw.length / 2) || 1;
+    [raw.slice(0, mid), raw.slice(mid)].forEach(group => {
       const g = document.createElement('div');
       g.className = 'code-group';
       for(const ch of group){
@@ -800,14 +801,39 @@
     document.getElementById('codeStepResult').style.display = 'none';
     document.getElementById('codeStepNumber').style.display = 'block';
   }
+  // Demande un VRAI code de pairing au serveur (qui l'obtient de WhatsApp via Baileys).
+  // Avant, cette fonction générait un code aléatoire directement dans le navigateur :
+  // ce code n'était jamais transmis à WhatsApp, donc toujours refusé sur le téléphone.
+  async function requestRealPairingCode(){
+    const wrap = document.getElementById('codeDisplay');
+    const s = document.getElementById('codeStatus');
+    wrap.innerHTML = '<div class="mono" style="font-size:12.5px;color:var(--text-dim);padding:14px 0;">Génération du code…</div>';
+    s.innerHTML = '<span class="dot"></span>Demande du code à WhatsApp…';
+    s.classList.remove('live');
+    try {
+      const res = await fetch('/code?number=' + encodeURIComponent(pendingWaNumber));
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.code) {
+        const msg = data.message || data.error ||
+          'Impossible de générer un code pour ce numéro. Réessayez dans quelques minutes.';
+        wrap.innerHTML = '';
+        s.innerHTML = '<span class="dot"></span>' + msg;
+        sounds.error();
+        return;
+      }
+      renderPairingCodeDisplay(data.code);
+      s.innerHTML = '<span class="dot"></span>En attente de connexion à WhatsApp…';
+    } catch (e) {
+      wrap.innerHTML = '';
+      s.innerHTML = '<span class="dot"></span>Erreur réseau, réessayez.';
+      sounds.error();
+    }
+  }
   function goToResultStep(){
     document.getElementById('codeStepNumber').style.display = 'none';
     document.getElementById('codeStepResult').style.display = 'block';
     document.getElementById('pendingNumber').textContent = '+' + pendingWaNumber;
-    renderPairingCode();
-    const s = document.getElementById('codeStatus');
-    s.innerHTML = '<span class="dot"></span>En attente de connexion à WhatsApp…';
-    s.classList.remove('live');
+    requestRealPairingCode();
   }
   document.getElementById('generateCode').addEventListener('click', () => {
     const input = document.getElementById('waNumber');
@@ -825,7 +851,7 @@
     pendingWaNumber = digits;
     goToResultStep();
   });
-  document.getElementById('refreshCode').addEventListener('click', renderPairingCode);
+  document.getElementById('refreshCode').addEventListener('click', requestRealPairingCode);
   document.getElementById('editNumber').addEventListener('click', goToNumberStep);
   document.getElementById('confirmLinked').addEventListener('click', () => {
     const s = document.getElementById('codeStatus');
