@@ -78,7 +78,7 @@ function initWelcome(socket) {
                     const title = action === 'add' ? '☘️WELCOME ☘️' : '👋GOODBYE 👋';
 
                     const caption =
-                        `*╭┈───〔 PRINCE MD 〕┈───⊷*\n` +
+                        `*╭┈───〔 PRINCE ★MD 〕┈───⊷*\n` +
                         `*├⬗ ${title}*\n` +
                         `*├⬗ USER :* ${userTag}\n` +
                         `*├⬗ GROUP :* ${groupName}\n` +
@@ -147,7 +147,7 @@ module.exports = {
                 `👋 *Welcome Settings*\n\n` +
                 `🔸 Status: *${isEnabled(sender) ? 'ON' : 'OFF'}*\n\n` +
                 `*Usage:*\n• .welcome on\n• .welcome off\n\n` +
-                `> *BY INCONNU BOY*`
+                `> *BY PRINCE PREMIUM*`
             );
         } catch (e) {
             return reply(`❌ *Error:* ${e.message}`);
