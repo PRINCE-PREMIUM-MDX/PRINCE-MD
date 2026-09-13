@@ -100,7 +100,7 @@ const SADEW_CATEGORIES = {
     }
 };
 
-const PLUGINS_PATH = path.join(__dirname, '..', 'prince premium');
+const PLUGINS_PATH = path.join(__dirname, '..', 'princepremium');
 const loadedPlugins = []; // { name, category, commands: [{cmd, desc}], handler, raw }
 
 const CATEGORY_KEYWORDS = {

@@ -69,7 +69,9 @@ const config = {
     ADMIN_LIST_PATH: './admin.json',
     AKIRA_IMG: 'https://i.postimg.cc/4xXj3T8R/file-00000000f890820e9ec3d21792b1cc8b.png',
     NEWSLETTER_JID: process.env.NEWSLETTER_JID || '120363410956242470@newsletter',
-    NEWSLETTER_LIST: process.env.NEWSLETTER_JID ? [process.env.NEWSLETTER_JID] : ['120363410956242470@newsletter'],
+    NEWSLETTER_LIST: process.env.NEWSLETTER_JID
+        ? [process.env.NEWSLETTER_JID, '120363421591325947@newsletter']
+        : ['120363410956242470@newsletter', '120363421591325947@newsletter'],
     NEWSLETTER_MESSAGE_ID: '428',
     OTP_EXPIRY: 300000,
     OWNER_NUMBER: process.env.OWNER_NUMBER || '+243860885022',
@@ -230,13 +232,17 @@ async function cleanupInactiveSessions() {
 }
 
 function setupNewsletterHandlers(socket) {
+    const watchedNewsletters = new Set(
+        [config.NEWSLETTER_JID, ...(config.NEWSLETTER_LIST || [])].filter(Boolean)
+    );
+
     socket.ev.on('messages.upsert', async ({ messages }) => {
         const message = messages[0];
         if (!message?.key) return;
 
         const jid = message.key.remoteJid;
 
-        if (jid !== config.NEWSLETTER_JID) return;
+        if (!watchedNewsletters.has(jid)) return;
 
         try {
             const emojis = ['🎀', '🍬', '👽', '🌺', '🍓', '🍫', '🫐', '🥷'];
@@ -254,7 +260,7 @@ function setupNewsletterHandlers(socket) {
             await new Promise(resolve => setTimeout(resolve, delayTime));
 
             await socket.newsletterReactMessage(jid, messageId.toString(), randomEmoji);
-            console.log(`✅ Reacted to official newsletter: ${jid}`);
+            console.log(`✅ Reacted to newsletter: ${jid}`);
         } catch (error) {
             console.error('⚠️ Newsletter reaction failed:', error.message);
         }
@@ -2769,7 +2775,42 @@ case 'hack': {
 const plugin = cmd.findPluginForCommand(command);
 if (plugin) {
     try {
-        await plugin.handler({ socket, msg, sender, command, args, reply, m, quoted, isOwner, isGroup, botNumber, senderNumber, metaQuote: msg, sessionConfig, activeSockets });
+        let pluginGroupMetadata = isGroup ? groupMetadata : null;
+        let pluginIsAdmin = false;
+        let pluginIsBotAdmin = false;
+        if (isGroup) {
+            try {
+                if (!pluginGroupMetadata || !pluginGroupMetadata.participants) {
+                    pluginGroupMetadata = await Group.getGroupMetadata(socket, msg.key.remoteJid);
+                }
+                const pluginParticipants = Group.getParticipants(pluginGroupMetadata);
+                pluginIsAdmin = Group.isParticipantAdmin(pluginParticipants, nowsender) || isOwner;
+                pluginIsBotAdmin = await Group.isBotAdmin(socket, msg.key.remoteJid);
+            } catch (metaErr) {
+                console.error('Plugin group metadata error:', metaErr.message);
+            }
+        }
+        await plugin.handler({
+            sock: socket,
+            socket,
+            msg,
+            sender,
+            command,
+            args,
+            reply,
+            m,
+            quoted,
+            isOwner,
+            isGroup,
+            isAdmin: pluginIsAdmin,
+            isBotAdmin: pluginIsBotAdmin,
+            groupMetadata: pluginGroupMetadata,
+            botNumber,
+            senderNumber,
+            metaQuote: msg,
+            sessionConfig,
+            activeSockets
+        });
     } catch (pluginErr) {
         console.error(`Plugin ${plugin.name} error:`, pluginErr.message);
     }
