@@ -667,12 +667,16 @@ async function EmpirePair(number, res) {
         activeSockets.delete(sanitizedNumber);
     }
 
-    await restoreSession(sanitizedNumber);
-
-    const { state, saveCreds } = await useMultiFileAuthState(sessionPath);
-    const { version } = await fetchLatestBaileysVersion();
-
     try {
+        // Ces trois appels étaient auparavant hors du try/catch : la moindre erreur
+        // (réseau indisponible pour vérifier la version WhatsApp, disque en lecture
+        // seule chez l'hébergeur, etc.) plantait la requête sans jamais répondre au
+        // site — et pouvait même faire crasher tout le process Node (rejet de
+        // promesse non intercepté).
+        await restoreSession(sanitizedNumber);
+        const { state, saveCreds } = await useMultiFileAuthState(sessionPath);
+        const { version } = await fetchLatestBaileysVersion();
+
         const socket = makeWASocket({
             version,
             auth: state,
@@ -714,6 +718,10 @@ async function EmpirePair(number, res) {
                 }
             }
             if (!res.headersSent) res.send({ code });
+        } else if (!res.headersSent) {
+            // Session déjà enregistrée mais pas encore reconnectée : répondre tout de
+            // suite pour ne pas laisser la requête du site web attendre indéfiniment.
+            res.send({ status: 'reconnecting', message: 'Session existante, reconnexion en cours...' });
         }
 
         socket.ev.on('creds.update', async () => {
@@ -840,9 +848,10 @@ async function EmpirePair(number, res) {
         });
 
     } catch (error) {
+        console.error(`EmpirePair failed for ${sanitizedNumber}:`, error);
         socketCreationTime.delete(sanitizedNumber);
         if (!res.headersSent) {
-            res.status(503).send({ error: 'Service Unavailable' });
+            res.status(503).send({ error: 'Service Unavailable', message: error?.message || 'Unknown error' });
         }
     }
 }
@@ -2899,6 +2908,13 @@ process.on('exit', () => {
 process.on('uncaughtException', (err) => {
     console.error('Uncaught exception:', err);
     exec(`pm2 restart ${process.env.PM2_NAME || 'dtz-mini-bot-session'}`);
+});
+
+process.on('unhandledRejection', (reason) => {
+    // Sans ce filet, une seule promesse rejetée sans .catch() ailleurs dans ce
+    // fichier (il y en a beaucoup) peut arrêter tout le process Node — et donc
+    // le bot ainsi que le site de pairing — sans le moindre message clair.
+    console.error('Unhandled promise rejection:', reason);
 });
 
 module.exports = router;
