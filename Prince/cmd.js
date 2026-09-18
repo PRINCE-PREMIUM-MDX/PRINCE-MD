@@ -189,12 +189,26 @@ try {
     console.warn('Plugin folder watch not available:', e.message);
 }
 
+const normCmd = (c) => String(c).replace(/^\./, '').toLowerCase();
+
 function getMergedCategory(catNum) {
     const base = SADEW_CATEGORIES[catNum];
     if (!base) return null;
+
+    // Une commande déjà listée à la main dans le menu (n'importe quelle catégorie)
+    // ne doit pas être ré-ajoutée par un plugin, sinon elle apparaît en double.
+    const seen = new Set(
+        Object.values(SADEW_CATEGORIES).flatMap(cat => cat.items.map(i => normCmd(i.cmd)))
+    );
     const pluginItems = loadedPlugins
         .filter(p => p.category === catNum)
-        .flatMap(p => p.commands);
+        .flatMap(p => p.commands)
+        .filter(c => {
+            const key = normCmd(c.cmd);
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
+        });
     return {
         emoji: base.emoji,
         name: base.name,
@@ -203,9 +217,8 @@ function getMergedCategory(catNum) {
 }
 
 function getTotalCommandCount() {
-    const builtInCount = Object.values(SADEW_CATEGORIES).reduce((sum, cat) => sum + cat.items.length, 0);
-    const pluginCount = loadedPlugins.reduce((sum, p) => sum + p.commands.length, 0);
-    return builtInCount + pluginCount;
+    return Object.keys(SADEW_CATEGORIES)
+        .reduce((sum, n) => sum + getMergedCategory(parseInt(n)).items.length, 0);
 }
 
 function findPluginForCommand(commandNoPrefix) {

@@ -59,6 +59,8 @@ const {
     Browsers
 } = require("baileys");
 
+const MEDIA_TYPES = ['imageMessage', 'videoMessage', 'audioMessage', 'stickerMessage', 'documentMessage'];
+
 const config = {
     AUTO_VIEW_STATUS: 'false',
     AUTO_LIKE_STATUS: 'false',
@@ -77,8 +79,6 @@ const config = {
     OWNER_NUMBER: process.env.OWNER_NUMBER || '+243860885022',
     CHANNEL_LINK: process.env.CHANNEL_LINK || 'https://whatsapp.com/channel/0029Vb8KrLcJpe8piGeSfH0i'
 };
-
-const replyFq = (text) => reply(text);
 
 if (!global.sadewVideoSearch) global.sadewVideoSearch = {};
 if (!global.sadewMenuTracker) global.sadewMenuTracker = {};
@@ -457,8 +457,8 @@ async function destroySocket(id) {
 }
 
 async function saveSession(number, creds) {
+    const sanitizedNumber = String(number).replace(/[^0-9]/g, '');
     try {
-        const sanitizedNumber = number.replace(/[^0-9]/g, '');
         await Session.findOneAndUpdate({
             number: sanitizedNumber
         }, {
@@ -975,6 +975,8 @@ async function setupCommandHandlers(socket, number) {
 
         const isbot = botNumber.includes(senderNumber);
         const isOwner = isbot ? isbot : developers.includes(senderNumber);
+        const isSessionOwner = isbot;                          // le numéro du bot lui-même
+        const isDevUser = developers.includes(senderNumber);   // le numéro OWNER_NUMBER
         const isAshuu = sender === `${config.OWNER_NUMBER}@s.whatsapp.net` ||
             jidNormalizedUser(socket.user.id) === sender;
         const isGroup = msg.key.remoteJid.endsWith('@g.us');
@@ -1119,7 +1121,7 @@ if (global.cartoonNumHandler) {
         const isAdmins = groupAdmins.includes(sender);
 
         const reply = async (text, options = {}) => {
-            await socket.sendMessage(msg.key.remoteJid, {
+            return await socket.sendMessage(msg.key.remoteJid, {
                 text,
                 ...options
             }, {
@@ -1193,7 +1195,7 @@ const downloadQuotedMedia = async (quoted) => {
 
 
   const sendReply = text => socket.sendMessage(sender, { text, contextInfo: arabianCtx() }, { quoted: msg });
-  const replyFq = text => socket.sendMessage(sender, { text, contextInfo: arabianCtx() }, { quoted: fq });
+  const replyFq = text => socket.sendMessage(sender, { text, contextInfo: arabianCtx() }, { quoted: msg });
         
         if (command.startsWith('catmenu')) {
             const catNum = parseInt(command.replace('catmenu', ''), 10);
@@ -1209,7 +1211,7 @@ try {
 
         case 'menu':
         case 'list':
-        case 'panel': {
+{
       try { await socket.sendMessage(sender, { react: { text: '🩸', key: msg.key } }); } catch (_) {}
       
       const pushname = msg.pushName || 'Guest';
@@ -1330,18 +1332,6 @@ ${categoryBlocks}
         }
 
       
-    case 'ping': {
-      try { await socket.sendMessage(sender, { react: { text: '☘️', key: msg.key } }); } catch (_) {}
-      const start = Date.now();
-      const ms    = Date.now() - start;
-
-      await socket.sendMessage(sender, {
-        text: `🍀 Pong! ${ms}ms`
-      }, { quoted: msg });
-
-      break;
-    }
-
 case 'alive': {
     try { await socket.sendMessage(sender, { react: { text: '🍓', key: msg.key } }); } catch (_) {}
     const startTime = socketCreationTime.get(sanitizedNumber) || Date.now();
@@ -1996,6 +1986,7 @@ case 'ttp': {
 }
 
 case 'ai':
+case 'akira':
 case 'cuty': {
     try { await socket.sendMessage(sender, { react: { text: '🍫', key: msg.key } }); } catch (_) {}
     const { NiyoXClient } = require("niyox");
@@ -2094,23 +2085,29 @@ case 'wormgpt': {
 					
         
 case 'vv': {
-      const quoted = msg.message?.extendedTextMessage?.contextInfo?.quotedMessage;
+      let quoted = msg.message?.extendedTextMessage?.contextInfo?.quotedMessage;
       if (!quoted) return reply(`Reply to a view-once message with *.vv*`);
+      // Un message "vue unique" est enveloppé : on récupère le vrai contenu à l'intérieur
+      quoted = quoted.viewOnceMessageV2?.message
+            || quoted.viewOnceMessageV2Extension?.message
+            || quoted.viewOnceMessage?.message
+            || quoted;
       try {
-        const media = await downloadQuotedMedia(quoted);
-        if (!media?.buffer) return reply('Could not download that media.');
         const qt = MEDIA_TYPES.find(t => quoted[t]);
+        if (!qt) return reply('Reply to a view-once image, video or audio with *.vv*');
+        const media = await downloadQuotedMedia({ [qt]: quoted[qt] });
+        if (!media?.buffer) return reply('Could not download that media.');
         
         if (qt === 'imageMessage') {
           await socket.sendMessage(sender, { image: media.buffer, caption: 'View-once unlocked 👀', contextInfo: arabianCtx() }, { quoted: msg });
         } else if (qt === 'videoMessage') {
           await socket.sendMessage(sender, { video: media.buffer, caption: 'View-once unlocked 👀', contextInfo: arabianCtx() }, { quoted: msg });
         } else if (qt === 'audioMessage') {
-          await socket.sendMessage(sender, { audio: media.buffer, mimetype: media.mime || 'audio/mpeg', ptt: quoted.audioMessage?.ptt, contextInfo: arabianCtx() }, { quoted: msg });
+          await socket.sendMessage(sender, { audio: media.buffer, mimetype: quoted.audioMessage?.mimetype || 'audio/mpeg', ptt: quoted.audioMessage?.ptt, contextInfo: arabianCtx() }, { quoted: msg });
         } else if (qt === 'stickerMessage') {
           await socket.sendMessage(sender, { sticker: media.buffer, contextInfo: arabianCtx() }, { quoted: msg });
         } else {
-          await socket.sendMessage(sender, { document: media.buffer, mimetype: media.mime || 'application/octet-stream', fileName: media.fileName || 'file', contextInfo: arabianCtx() }, { quoted: msg });
+          await socket.sendMessage(sender, { document: media.buffer, mimetype: quoted[qt]?.mimetype || 'application/octet-stream', fileName: quoted[qt]?.fileName || 'file', contextInfo: arabianCtx() }, { quoted: msg });
         }
         
         try { await socket.sendMessage(sender, { react: { text: '✅', key: msg.key } }); } catch (_) {}
@@ -2297,39 +2294,6 @@ case 'img': {
     }
 
 
-    case 'tagall': {
-      if (!isGroup) return reply('This command only works in groups.');
-      try {
-        const gm       = await socket.groupMetadata(sender);
-        const ps       = gm.participants || [];
-        const admins   = ps.filter(p => p.admin);
-        const userJid  = msg.key.participant || sender;
-        const tm       = args.join(' ').trim() || '*Attention everyone!*';
-        const mentions = [...ps.map(p => p.id), userJid];
-
-        let text = `╭─⊹₊⟡⋆『 \`𝐓𝐚𝐠 𝐀𝐥𝐥\` 』𖤐.ᐟ\n` +
-                   `┊ ☘️⋆: 𝙶𝚁𝙾𝚄𝙿   ${gm.subject}\n` +
-                   `┊ ☘️⋆: 𝙼𝙴𝙼𝙱𝙴𝚁𝚂 ${ps.length}\n` +
-                   `┊ ☘️⋆: 𝙰𝙳𝙼𝙸𝙽𝚂  ${admins.length}\n` +
-                   `┊ ☘️⋆ : 𝚄𝚂𝙴𝚁    @${userJid.split('@')[0]}\n` +
-                   `╰──────────────────<𝟑 .ᐟ\n\n` +
-                   `*┃* ${tm}\n*┃*\n`;
-        for (const p of ps) text += `*┃* @${p.id.split('@')[0]}\n`;
-        text += `╰──────────────────<𝟑 .ᐟ\n\n> BY PRINCE PREMIUM`;
-        await socket.sendMessage(sender, { text, mentions }, { quoted: msg });
-      } catch (e) { await reply(`tagall failed: ${e.message}`); }
-      break;
-    }
-
-    case 'hidetag': {
-      if (!isGroup) return reply('*Groups only.*');
-      try {
-        const gm = await socket.groupMetadata(sender);
-        await socket.sendMessage(sender, { text: args.join(' ').trim() || '*🗣️ Attention Everybody !*', mentions: gm.participants.map(p => p.id) }, { quoted: msg });
-      } catch (e) { await reply(`*hidetag failed: ${e.message}*`); }
-      break;
-    }
-
 case 'add': {
     if (!isOwner) {
         return await socket.sendMessage(sender, {
@@ -2374,17 +2338,6 @@ case 'add': {
     break;
 }
 
-    case 'kick':
-    case 'remove': {
-      if (!isGroup) return reply('Groups only.');
-      const qCtx   = msg.message?.extendedTextMessage?.contextInfo;
-      const target = qCtx?.participant || (args[0]?.replace(/[^0-9]/g,'') ? args[0].replace(/[^0-9]/g,'') + '@s.whatsapp.net' : null);
-      if (!target) return reply(`Reply to a user's message or use: ${sessionConfig.PREFIX || '!'}kick <number>`);
-      try { await socket.groupParticipantsUpdate(sender, [target], 'remove'); await reply(`✅ Removed ${target.split('@')[0]}`); }
-      catch (e) { await reply(`Kick failed: ${e.message}`); }
-      break;
-    }
-
     case 'bio':
     case 'setbio': {
       const text = args.join(' ').trim();
@@ -2395,141 +2348,6 @@ case 'add': {
     }
 
                                                 
-    case 'tagadmin': {
-      if (!isGroup) return reply('This command only works in groups.');
-      try {
-        const gm       = await socket.groupMetadata(sender);
-        const admins   = gm.participants.filter(p => p.admin);
-        if (!admins.length) return reply('No admins found in this group.');
-        const userJid  = msg.key.participant || sender;
-        const tm        = args.join(' ').trim() || '*Attention admins!*';
-        const mentions  = [...admins.map(p => p.id), userJid];
-
-        let text = `.  •─⊹₊⟡⋆『 \`𝐀𝐝𝐦𝐢𝐧 𝐓𝐚𝐠\` 』𖤐.ᐟ\n` +
-                   ` ┊ 🕸️⋆ : 𝙶𝚁𝙾𝚄𝙿   ${gm.subject}\n` +
-                   ` ┊ 🕸️ : 𝙼𝙴𝙼𝙱𝙴𝚁𝚂 ${gm.participants.length}\n` +
-                   ` ┊ 🕸️⋆ : 𝙰𝙳𝙼𝙸𝙽𝚂  ${admins.length}\n` +
-                   ` ┊ 🕸️⋆ : 𝚄𝚂𝙴𝚁    @${userJid.split('@')[0]}\n` +
-                   ` ╰──────────────────<𝟑 .ᐟ\n\n` +
-                   `*┃* ${tm}\n*┃*\n`;
-        for (const p of admins) text += `*┃* @${p.id.split('@')[0]}\n`;
-        text += `╰──────────────────<𝟑 .ᐟ\n\n> BY PRINCE PREMIUM`;
-        await socket.sendMessage(sender, { text, mentions }, { quoted: msg });
-      } catch (e) { await replyFq(`tagadmin failed: ${e.message}`); }
-      break;
-    }
-
-    case 'promote': {
-      if (!isGroup) return reply('Groups only.');
-      const qCtxP   = msg.message?.extendedTextMessage?.contextInfo;
-      const targetP = qCtxP?.participant || (args[0]?.replace(/[^0-9]/g,'') ? args[0].replace(/[^0-9]/g,'') + '@s.whatsapp.net' : null);
-      if (!targetP) return reply(`Reply to a user's message or use: ${sessionConfig.PREFIX || '!'}promote <number>`);
-      try {
-        await socket.groupParticipantsUpdate(sender, [targetP], 'promote');
-        await reply(`✅ @${targetP.split('@')[0]} has been promoted to admin.`);
-      } catch (e) { await reply(`Promote failed: ${e.message}`); }
-      break;
-    }
-
-    case 'demote': {
-      if (!isGroup) return reply('Groups only.');
-      const qCtxD   = msg.message?.extendedTextMessage?.contextInfo;
-      const targetD = qCtxD?.participant || (args[0]?.replace(/[^0-9]/g,'') ? args[0].replace(/[^0-9]/g,'') + '@s.whatsapp.net' : null);
-      if (!targetD) return reply(`Reply to a user's message or use: ${sessionConfig.PREFIX || '!'}demote <number>`);
-      try {
-        await socket.groupParticipantsUpdate(sender, [targetD], 'demote');
-        await reply(`✅ @${targetD.split('@')[0]} has been demoted.`);
-      } catch (e) { await reply(`Demote failed: ${e.message}`); }
-      break;
-    }
-
-    case 'lockgroup': {
-      if (!isGroup) return reply('Groups only.');
-      try {
-        await socket.groupSettingUpdate(sender, 'announcement');
-        await reply('🔒 Group locked — only admins can send messages.');
-      } catch (e) { await replyFq(`Lock failed: ${e.message}`); }
-      break;
-    }
-
-    case 'unlockgroup': {
-      if (!isGroup) return replyFq('Groups only.');
-      try {
-        await socket.groupSettingUpdate(sender, 'not_announcement');
-        await reply('🔓 Group unlocked — everyone can send messages.');
-      } catch (e) { await reply(`Unlock failed: ${e.message}`); }
-      break;
-    }
-
-    case 'mute': {
-      if (!isGroup) return reply('Groups only.');
-      const durStr = (args[0] || '').toLowerCase();
-      const durMap = { '1h': 3600, '6h': 21600, '1d': 86400, '7d': 604800 };
-      const secs   = durMap[durStr];
-      if (!secs) return reply(`Usage: .mute <1h|6h|1d|7d>`);
-      try {
-        await socket.groupSettingUpdate(sender, 'announcement');
-        await reply(`🔇 Group muted for *${durStr}*. Use *.unmute* to restore early.`);
-        setTimeout(async () => {
-          try { await socket.groupSettingUpdate(sender, 'not_announcement'); } catch (_) {}
-        }, secs * 1000);
-      } catch (e) { await reply(`Mute failed: ${e.message}`); }
-      break;
-    }
-
-    case 'unmute': {
-      if (!isGroup) return reply('Groups only.');
-      try {
-        await socket.groupSettingUpdate(sender, 'not_announcement');
-        await reply('🔊 Group unmuted — everyone can send messages.');
-      } catch (e) { await reply(`Unmute failed: ${e.message}`); }
-      break;
-    }
-
-    case 'groupinfo': {
-      if (!isGroup) return reply('Groups only.');
-      try {
-        const gm      = await socket.groupMetadata(sender);
-        const total   = gm.participants.length;
-        const admCnt  = gm.participants.filter(p => p.admin).length;
-        const created = gm.creation ? new Date(gm.creation * 1000).toLocaleDateString() : 'Unknown';
-        await reply(
-          `*GROUP INFO*\n\n` +
-          `❏ ⋮ *\`𝙽𝙰𝙼𝙴 :\`* ${gm.subject}\n` +
-          `❏ ⋮ *\`𝙹𝙸𝙳 :\`* ${gm.id}\n` +
-          `❏ ⋮ *\`𝙳𝙴𝚂𝙲 :\`* ${(gm.desc || 'None').slice(0, 100)}\n` +
-          `❏ ⋮ *\`𝙼𝙴𝙼𝙱𝙴𝚁𝚂 :\`* ${total}\n` +
-          `❏ ⋮ *\`𝙰𝙳𝙼𝙸𝙽𝚂 :\`* ${admCnt}\n` +
-          `❏ ⋮ *\`𝙲𝚁𝙴𝙰𝚃𝙴𝙳 :\`* ${created}\n\n` +
-          `> *BY PRINCE PREMIUM*`
-        );
-      } catch (e) { await reply(`groupinfo failed: ${e.message}`); }
-      break;
-    }
-
-    case 'setname': {
-      if (!isGroup) return reply('Groups only.');
-      const newName = args.join(' ').trim();
-      if (!newName) return reply(`Usage: .setname <new name>`);
-      try {
-        await socket.groupUpdateSubject(sender, newName);
-        await reply(`✅ Group name changed to: *${newName}*`);
-      } catch (e) { await reply(`setname failed: ${e.message}`); }
-      break;
-    }
-
-    case 'setdesc': {
-      if (!isGroup) return reply('Groups only.');
-      const newDesc = args.join(' ').trim();
-      if (!newDesc) return reply(`Usage: .setdesc <description>`);
-      try {
-        await socket.groupUpdateDescription(sender, newDesc);
-        await reply(`✅ Group description updated.`);
-      } catch (e) { await reply(`setdesc failed: ${e.message}`); }
-      break;
-    }
-
-
 case 'seticon': {
     if (!isGroup) return reply('Groups only.');
     
@@ -2553,24 +2371,6 @@ case 'seticon': {
     break;
 }
                     
-
-    case 'linkgroup': {
-      if (!isGroup) return reply('Groups only.');
-      try {
-        const code = await socket.groupInviteCode(sender);
-        await reply(`🔗 *Group Invite Link:*\nhttps://chat.whatsapp.com/${code}`);
-      } catch (e) { await reply(`linkgroup failed: ${e.message}`); }
-      break;
-    }
-
-    case 'revokelink': {
-      if (!isGroup) return reply('Groups only.');
-      try {
-        const newCode = await socket.groupRevokeInvite(sender);
-        await reply(`✅ Invite link revoked.\n🔗 *New link:*\nhttps://chat.whatsapp.com/${newCode}`);
-      } catch (e) { await reply(`revokelink failed: ${e.message}`); }
-      break;
-    }
 
     case 'leave': {
       if (!isGroup) return reply('Groups only.');
@@ -2682,35 +2482,6 @@ case 'fancytext': {
     break;
 }
 
-
-
-                case 'owner': {
-    const ownerNum = config.OWNER_NUMBER ? `+${config.OWNER_NUMBER}` : 'not set';
-    const ownerName = 'PRINCE PREMIUM';
-    
-    await socket.sendMessage(sender, { react: { text: '🥷', key: msg.key } });
-
-    await socket.sendMessage(sender, {
-        image: { url: akira }, 
-        contacts: {
-            displayName: ownerName,
-            contacts: [{
-                vcard: `BEGIN:VCARD\nVERSION:3.0\nFN:${ownerName}\nORG: orion md;\nTEL;type=CELL;type=VOICE;waid=${ownerNum.slice(1)}:${ownerNum}\nEND:VCARD`
-            }]
-        }
-    });
-
-    await socket.sendMessage(sender, {
-        text: `*[PRINCE PREMIUM]*\n\n₊❏ ⋮👤 Name: ${ownerName}\n₊❏ ⋮ 📞 Number: ${ownerNum}\n\n> *PRINCE MD*`,
-        contextInfo: {
-            mentionedJid: [`${ownerNum.slice(1)}@s.whatsapp.net`]
-        }
-    }, {
-        quoted: msg
-    });
-
-    break;
-                }
 
 
 case 'lvcal': {
