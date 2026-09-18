@@ -99,7 +99,8 @@ module.exports = {
             case "tagall": {
                 if (!needAdmin()) return;
                 const ids = participants.map(p => p.id);
-                let text = `📢 *Tag All — ${groupMetadata.subject || ''}*\n\n`;
+                const note = args.join(' ').trim();
+                let text = `📢 *Tag All — ${groupMetadata.subject || ''}*\n\n` + (note ? `${note}\n\n` : '');
                 ids.forEach(id => { text += `➤ @${fmtName(id)}\n`; });
                 return reply(text, { mentions: ids });
             }
@@ -200,8 +201,19 @@ module.exports = {
             case "mute":
             case "lockgroup": {
                 if (!needAdmin() || !needBotAdmin()) return;
+                // .mute <1h|6h|1d|7d> : verrouille puis rouvre tout seul à l'échéance (sans durée = verrou permanent)
+                const durMap = { '1h': 3600, '6h': 21600, '1d': 86400, '7d': 604800 };
+                const durStr = command === "mute" ? (args[0] || '').toLowerCase() : '';
+                const secs = durMap[durStr];
+                if (command === "mute" && args[0] && !secs) return reply("❗ *Durée invalide.*\nEx: .mute 1h  (1h, 6h, 1d ou 7d)");
                 try {
                     await sock.groupSettingUpdate(groupJid, 'announcement');
+                    if (secs) {
+                        setTimeout(async () => {
+                            try { await sock.groupSettingUpdate(groupJid, 'not_announcement'); } catch (_) {}
+                        }, secs * 1000);
+                        return reply(`🔇 *Groupe verrouillé pendant ${durStr}.* Utilise *.unmute* pour rouvrir avant.`);
+                    }
                     return reply(`🔒 *Groupe verrouillé — seuls les admins peuvent écrire.*`);
                 } catch (e) {
                     return reply(`❌ *Échec :* ${e.message}`);
