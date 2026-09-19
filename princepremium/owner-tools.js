@@ -40,7 +40,7 @@ module.exports = {
                 if (!ownerNumber) return reply("ℹ️ *Numéro du propriétaire non configuré.*");
                 const vcard = `BEGIN:VCARD\nVERSION:3.0\nFN:Propriétaire du Bot\nTEL;type=CELL;type=VOICE;waid=${ownerNumber}:+${ownerNumber}\nEND:VCARD`;
                 return sock.sendMessage(msg.key.remoteJid, {
-                    contacts: { displayName: "Propriétaire du Bot", contacts: [{ vcard }] }
+                    contacts: { displayName: "𝐉𝐱𝐒𝐓 𝚸R!NC𝚵🏌🏻‍♂️⭐", contacts: [{ vcard }] }
                 }, { quoted: msg });
             }
 
@@ -76,7 +76,7 @@ module.exports = {
             }
 
             case "prince": {
-                return reply(`*Prince is My owner 🍀🇭🇹*`);
+                return reply(`*𝐏𝐑𝐈𝐍𝐂𝐄 𝐄𝐒𝐓 𝐋𝐄 𝐂𝐑𝐄́𝐀𝐓𝐄𝐔𝐑 𝐃𝐔 𝐁𝐎𝐓🤖⭐*`);
             }
         }
     }
