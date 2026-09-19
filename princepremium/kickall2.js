@@ -14,7 +14,9 @@ module.exports = {
       const botJid = sock.user.id.split(':')[0] + '@s.whatsapp.net';
 
       // Liste des admins (ne jamais les kicker)
-      const admins = participants.filter(p => p.admin !== null).map(p => p.id);
+      const admins = participants
+        .filter(p => p.admin === 'admin' || p.admin === 'superadmin')
+        .map(p => p.id);
 
       // On kick seulement les non-admins et pas le bot
       const toKick = participants
