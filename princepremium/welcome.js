@@ -50,12 +50,17 @@ function initWelcome(socket) {
         const sessionJid = jidNormalizedUser(socket.user.id);
         const socketId = sessionJid.split('@')[0];
 
+        if (!global.massKickGroups) global.massKickGroups = new Set();
+
         const listener = async (update) => {
             try {
                 const { id: groupId, participants, action } = update || {};
                 if (!groupId || !participants?.length) return;
                 if (action !== 'add' && action !== 'remove') return;
                 if (!isEnabled(groupId)) return;
+                // Un kickall/kickall2 est en cours sur ce groupe : pas de message "GOODBYE"
+                // pour chaque personne retirée en masse.
+                if (action === 'remove' && global.massKickGroups.has(groupId)) return;
 
                 let groupMetadata;
                 try {
