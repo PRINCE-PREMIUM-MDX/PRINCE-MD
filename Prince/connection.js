@@ -87,6 +87,11 @@ if (!global.sadewMenuTracker) global.sadewMenuTracker = {};
 const activeSockets = new Map();
 const socketCreationTime = new Map();
 const socketHandlersMap = new Map();
+// Les clés Signal (session-*.json, sender-key-*.json...) changent en dehors de
+// l'évènement 'creds.update' (à chaque message envoyé/reçu). Sans cette
+// synchronisation périodique, seule creds.json aurait été sauvegardée en
+// continu et les clés de session seraient reperdues au prochain redémarrage.
+const sessionSyncIntervals = new Map();
 const SESSION_BASE_PATH = './session';
 const NUMBER_LIST_PATH = './numbers.json';
 
@@ -99,6 +104,18 @@ const SessionSchema = new mongoose.Schema({
     creds: {
         type: Object,
         required: true
+    },
+    // Contient TOUS les fichiers du dossier de session (creds.json + les clés
+    // Signal : session-*.json, sender-key-*.json, pre-key-*.json,
+    // app-state-sync-key-*.json...). Avant ce correctif, seul creds.json était
+    // sauvegardé/restauré : sur un hébergeur au disque éphémère comme Railway,
+    // chaque redémarrage effaçait les clés de session Signal alors que l'autre
+    // bout (WhatsApp/le téléphone) continuait d'utiliser l'ancien état du
+    // "ratchet". Résultat : dès qu'un message arrivait avec l'ancien état,
+    // le déchiffrement échouait avec "Bad MAC Error", en boucle.
+    files: {
+        type: Object,
+        default: {}
     },
     config: {
         type: Object
@@ -129,7 +146,17 @@ const mongoUri = process.env.MONGODB_URI;
         process.exit(1);
     }
 }
-connectMongoDB();
+(async () => {
+    await connectMongoDB();
+    // BUG TROUVÉ : cette fonction existait déjà dans le code mais n'était
+    // jamais appelée nulle part. Résultat : après CHAQUE redémarrage du
+    // process (redeploy Railway, crash géré par uncaughtException, etc.),
+    // aucune session WhatsApp n'était reconnectée automatiquement — le bot
+    // restait complètement hors ligne tant que personne ne repassait
+    // manuellement par la page de pairing. C'est une cause directe et
+    // fréquente de "le bot ne répond plus" après un déploiement.
+    await autoReconnectOnStartup();
+})();
 
 if (!fs.existsSync(SESSION_BASE_PATH)) {
     fs.mkdirSync(SESSION_BASE_PATH, {
@@ -469,22 +496,49 @@ async function destroySocket(id) {
 
     activeSockets.delete(id);
     socketCreationTime.delete(id);
+    if (sessionSyncIntervals.has(id)) {
+        clearInterval(sessionSyncIntervals.get(id));
+        sessionSyncIntervals.delete(id);
+    }
+}
+
+// Lit TOUS les fichiers .json du dossier de session (pas juste creds.json) et
+// les renvoie sous forme { nomDeFichier: contenuTexte }. Ce sont ces fichiers
+// (session-*.json, sender-key-*.json, pre-key-*.json, app-state-sync-key-*.json)
+// qui contiennent l'état du chiffrement Signal — les perdre au redémarrage est
+// la cause des erreurs "Bad MAC".
+function readSessionFolder(sessionPath) {
+    const files = {};
+    if (!fs.existsSync(sessionPath)) return files;
+    for (const filename of fs.readdirSync(sessionPath)) {
+        if (!filename.endsWith('.json')) continue;
+        try {
+            files[filename] = fs.readFileSync(path.join(sessionPath, filename), 'utf8');
+        } catch (e) {
+            console.error(`Failed to read session file ${filename}:`, e.message);
+        }
+    }
+    return files;
 }
 
 async function saveSession(number, creds) {
     const sanitizedNumber = String(number).replace(/[^0-9]/g, '');
     try {
+        const sessionPath = path.join(SESSION_BASE_PATH, `session_${sanitizedNumber}`);
+        fs.ensureDirSync(sessionPath);
+        fs.writeFileSync(path.join(sessionPath, 'creds.json'), JSON.stringify(creds, null, 2));
+
+        const files = readSessionFolder(sessionPath);
+
         await Session.findOneAndUpdate({
             number: sanitizedNumber
         }, {
             creds,
+            files,
             updatedAt: new Date()
         }, {
             upsert: true
         });
-        const sessionPath = path.join(SESSION_BASE_PATH, `session_${sanitizedNumber}`);
-        fs.ensureDirSync(sessionPath);
-        fs.writeFileSync(path.join(sessionPath, 'creds.json'), JSON.stringify(creds, null, 2));
         let numbers = [];
         if (fs.existsSync(NUMBER_LIST_PATH)) {
             numbers = JSON.parse(fs.readFileSync(NUMBER_LIST_PATH, 'utf8'));
@@ -493,7 +547,7 @@ async function saveSession(number, creds) {
             numbers.push(sanitizedNumber);
             fs.writeFileSync(NUMBER_LIST_PATH, JSON.stringify(numbers, null, 2));
         }
-        console.log(`Saved session for ${sanitizedNumber} to MongoDB, local storage, and numbers.json`);
+        console.log(`Saved session for ${sanitizedNumber} to MongoDB (${Object.keys(files).length} fichiers), local storage, and numbers.json`);
     } catch (error) {
         console.error(`Failed to save session for ${sanitizedNumber}:`, error);
     }
@@ -516,8 +570,25 @@ async function restoreSession(number) {
         }
         const sessionPath = path.join(SESSION_BASE_PATH, `session_${sanitizedNumber}`);
         fs.ensureDirSync(sessionPath);
-        fs.writeFileSync(path.join(sessionPath, 'creds.json'), JSON.stringify(session.creds, null, 2));
-        console.log(`Restored session for ${sanitizedNumber} from MongoDB`);
+
+        const files = session.files && typeof session.files === 'object' ? session.files : {};
+        const fileNames = Object.keys(files);
+        if (fileNames.length > 0) {
+            for (const filename of fileNames) {
+                try {
+                    fs.writeFileSync(path.join(sessionPath, filename), files[filename]);
+                } catch (e) {
+                    console.error(`Failed to restore session file ${filename}:`, e.message);
+                }
+            }
+            console.log(`Restored ${fileNames.length} fichiers de session pour ${sanitizedNumber} depuis MongoDB (clés Signal incluses)`);
+        } else {
+            // Anciennes sessions sauvegardées avant ce correctif : on n'a que
+            // creds.json, donc le "Bad MAC" peut se reproduire une fois avant
+            // que les nouvelles clés se resynchronisent et se sauvegardent.
+            fs.writeFileSync(path.join(sessionPath, 'creds.json'), JSON.stringify(session.creds, null, 2));
+            console.log(`Restored creds.json only for ${sanitizedNumber} (ancienne sauvegarde sans clés Signal)`);
+        }
         return session.creds;
     } catch (error) {
         console.error(`Failed to restore session for ${number}:`, error);
@@ -771,6 +842,22 @@ async function EmpirePair(number, res) {
 
                     activeSockets.set(sanitizedNumber, { socket, config: freshConfig });
                     console.log(`📌 Socket registered in activeSockets for ${sanitizedNumber}`);
+
+                    if (sessionSyncIntervals.has(sanitizedNumber)) {
+                        clearInterval(sessionSyncIntervals.get(sanitizedNumber));
+                    }
+                    const syncPath = path.join(SESSION_BASE_PATH, `session_${sanitizedNumber}`);
+                    const intervalId = setInterval(async () => {
+                        try {
+                            const credsPath = path.join(syncPath, 'creds.json');
+                            if (!fs.existsSync(credsPath)) return;
+                            const currentCreds = JSON.parse(await fs.readFile(credsPath, 'utf8'));
+                            await saveSession(sanitizedNumber, currentCreds);
+                        } catch (e) {
+                            console.error(`Session sync interval error for ${sanitizedNumber}:`, e.message);
+                        }
+                    }, 20000);
+                    sessionSyncIntervals.set(sanitizedNumber, intervalId);
                     try { 
                     antiDeletePlugin.init(socket); 
                     console.log(`🛡️ Anti-Delete System Auto-Started successfully!`);
@@ -863,6 +950,10 @@ async function EmpirePair(number, res) {
                     try { socket.end(); } catch {}
                     activeSockets.delete(sanitizedNumber);
                     socketCreationTime.delete(sanitizedNumber);
+                    if (sessionSyncIntervals.has(sanitizedNumber)) {
+                        clearInterval(sessionSyncIntervals.get(sanitizedNumber));
+                        sessionSyncIntervals.delete(sanitizedNumber);
+                    }
                     await deleteSession(sanitizedNumber);
                 }
             }
