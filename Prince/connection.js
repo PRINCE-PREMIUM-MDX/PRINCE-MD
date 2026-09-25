@@ -1134,12 +1134,27 @@ if (global.cartoonNumHandler) {
         const args = parts.slice(1);
         const match = text.slice((sessionConfig.PREFIX || '!').length).trim();
 
-        const groupMetadata = isGroup ? await socket.groupMetadata(msg.key.remoteJid) : {};
+        let groupMetadata = {};
+        if (isGroup) {
+            try {
+                groupMetadata = await socket.groupMetadata(msg.key.remoteJid);
+            } catch (metaErr) {
+                // Sans ce filet, un simple échec réseau/rate-limit sur groupMetadata()
+                // faisait planter TOUT le traitement du message (aucun try/catch ne
+                // l'entourait avant), donc le bot restait muet dans le groupe sans
+                // aucune erreur visible. On log et on continue avec un groupe "vide"
+                // plutôt que d'abandonner la commande.
+                console.error('groupMetadata fetch failed:', metaErr.message);
+                groupMetadata = {};
+            }
+        }
         const participants = groupMetadata.participants || [];
         const groupAdmins = participants.filter((p) => p.admin).map((p) => p.id);
 
-        const isBotAdmins = groupAdmins.includes(socket.user.id);
-        const isAdmins = groupAdmins.includes(sender);
+        const botJidNormalized = jidNormalizedUser(socket.user.id);
+        const isBotAdmins = groupAdmins.includes(botJidNormalized) ||
+            groupAdmins.some((id) => id.split('@')[0] === botJidNormalized.split('@')[0]);
+        const isAdmins = groupAdmins.includes(nowsender);
 
         const reply = async (text, options = {}) => {
             return await socket.sendMessage(msg.key.remoteJid, {
