@@ -24,6 +24,7 @@ const emojiDlPlugin = require('../princepremium/emoji_dl');
 const onceDlPlugin = require('../princepremium/once_dl');
 const antilinkPlugin = require('../princepremium/antilink');
 const welcomePlugin = require('../princepremium/welcome');
+const groupGuardPlugin = require('../princepremium/group-guard');
 const cmd = require('./cmd');
 const Group = require('./group');
   const images = [
@@ -414,9 +415,23 @@ function setupAutoRestart(socket, number) {
 
         reconnectAttempts++;
         if (reconnectAttempts > MAX_RECONNECT_ATTEMPTS) {
-            console.error(`[${id}] Trop de tentatives de reconnexion (${reconnectAttempts}), on arrête pour éviter un rate-limit WhatsApp.`);
+            // Avant : on abandonnait pour toujours ici (le bot restait déconnecté
+            // jusqu'à une reconnexion manuelle via le site). Sur un hébergement
+            // sujet à des micro-coupures, ce plafond finit toujours par être
+            // atteint tôt ou tard, et le bot ne revient jamais tout seul.
+            // Solution : marquer une pause longue pour ne pas marteler WhatsApp,
+            // puis réessayer avec un compteur remis à zéro plutôt que d'abandonner.
+            console.error(`[${id}] Trop de tentatives de reconnexion (${reconnectAttempts}), pause de 5 minutes avant nouvel essai.`);
             await destroySocket(id);
+            reconnectAttempts = 0;
+            await delay(5 * 60 * 1000);
             reconnecting = false;
+            const mockResCooldown = { headersSent: true, send() {}, status() { return this } };
+            try {
+                await EmpirePair(id, mockResCooldown);
+            } catch (e) {
+                console.error('Reconnect after cooldown failed:', e);
+            }
             return;
         }
 
@@ -785,6 +800,12 @@ async function EmpirePair(number, res) {
                         console.log(`👋 Welcome/Goodbye System Auto-Started successfully!`);
                     } catch(e) {
                         console.log(`❌ Welcome/Goodbye Error:`, e.message);
+                    }
+                    try {
+                        groupGuardPlugin.init(socket);
+                        console.log(`🛡️ Group Guard (anti-injures/mode lent) Auto-Started successfully!`);
+                    } catch(e) {
+                        console.log(`❌ Group Guard Error:`, e.message);
                     }
                         
                         try {
@@ -2678,7 +2699,15 @@ process.on('exit', () => {
 
 process.on('uncaughtException', (err) => {
     console.error('Uncaught exception:', err);
-    exec(`pm2 restart ${process.env.PM2_NAME || 'dtz-mini-bot-session'}`);
+    // pm2 restart ne fait rien si le process n'est pas lancé via PM2 (ex: "npm
+    // start" tout court, comme dans package.json actuellement) : la commande
+    // échoue silencieusement et le bot reste planté. On tente quand même le
+    // restart PM2 (utile si PM2 est bien utilisé en prod), mais dans tous les
+    // cas on quitte le process : Render/Railway/Docker/PM2 redémarrent
+    // automatiquement un process qui s'arrête, alors qu'un process qui reste
+    // en vie dans un état cassé ne redémarre jamais tout seul.
+    try { exec(`pm2 restart ${process.env.PM2_NAME || 'dtz-mini-bot-session'}`); } catch {}
+    setTimeout(() => process.exit(1), 1000);
 });
 
 process.on('unhandledRejection', (reason) => {
