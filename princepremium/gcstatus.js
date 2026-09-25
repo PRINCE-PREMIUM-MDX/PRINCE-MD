@@ -71,7 +71,18 @@ module.exports = {
         if (!isAdmin && !isOwner) return reply("❌ *Seuls les admins du groupe peuvent publier un statut de groupe !*");
 
         const participants = groupMetadata?.participants || [];
-        const statusJidList = participants.map(p => p.id).filter(Boolean);
+        // WhatsApp ne délivre un statut ciblé (statusJidList) qu'à des JIDs
+        // classiques "@s.whatsapp.net". Certains membres ont un identifiant
+        // "@lid" (numéro masqué) : impossible de leur envoyer un statut par ce
+        // biais, WhatsApp les ignore silencieusement sans erreur. On les
+        // exclut donc et on prévient l'utilisateur du nombre réellement visé.
+        const allIds = participants.map(p => p.id).filter(Boolean);
+        const statusJidList = allIds.filter(id => id.endsWith('@s.whatsapp.net'));
+        const skippedCount = allIds.length - statusJidList.length;
+        const audienceNote = skippedCount > 0
+            ? `\n⚠️ *${skippedCount} membre(s) avec un numéro masqué (@lid) ne peuvent pas recevoir ce statut.*`
+            : '';
+        const privacyNote = `\n\nℹ️ *Si personne ne voit le statut :* sur le téléphone lié au bot, va dans WhatsApp → Paramètres → Confidentialité → Statut, et mets-le sur *"Tout le monde"*. WhatsApp bloque silencieusement les statuts envoyés à des numéros qui ne sont pas dans tes contacts si ce réglage n'est pas sur "Tout le monde".`;
 
         if (statusJidList.length === 0) {
             return reply("❌ *Impossible de récupérer la liste des membres du groupe, réessaie dans un instant.*");
@@ -96,7 +107,7 @@ module.exports = {
                 });
 
                 const label = resolved.kind === 'imageMessage' ? 'image' : 'vidéo';
-                return reply(`✅ *Statut ${label} publié, visible par les ${statusJidList.length} membre(s) du groupe.*`);
+                return reply(`✅ *Statut ${label} publié, visible par les ${statusJidList.length} membre(s) du groupe.*${audienceNote}${privacyNote}`);
             }
 
             // --- Cas texte cité (reply à un message texte), + texte ajouté en option ---
@@ -115,7 +126,7 @@ module.exports = {
                     font: Math.floor(Math.random() * 5)
                 }, { statusJidList });
 
-                return reply(`✅ *Statut publié, visible par les ${statusJidList.length} membre(s) du groupe.*`);
+                return reply(`✅ *Statut publié, visible par les ${statusJidList.length} membre(s) du groupe.*${audienceNote}${privacyNote}`);
             }
 
             // --- Cas par défaut : statut texte simple à partir des args ---
@@ -137,7 +148,7 @@ module.exports = {
                 font: Math.floor(Math.random() * 5)
             }, { statusJidList });
 
-            return reply(`✅ *Statut publié, visible par les ${statusJidList.length} membre(s) du groupe.*`);
+            return reply(`✅ *Statut publié, visible par les ${statusJidList.length} membre(s) du groupe.*${audienceNote}${privacyNote}`);
         } catch (e) {
             console.error('gcstatus error:', e.message);
             return reply(`❌ *Échec de la publication du statut :* ${e.message}`);
