@@ -73,20 +73,32 @@ module.exports = {
         const participants = groupMetadata?.participants || [];
         // WhatsApp ne délivre un statut ciblé (statusJidList) qu'à des JIDs
         // classiques "@s.whatsapp.net". Certains membres ont un identifiant
-        // "@lid" (numéro masqué) : impossible de leur envoyer un statut par ce
-        // biais, WhatsApp les ignore silencieusement sans erreur. On les
-        // exclut donc et on prévient l'utilisateur du nombre réellement visé.
+        // "@lid" (numéro masqué, fonctionnalité de confidentialité WhatsApp) :
+        // impossible de leur envoyer un statut ciblé par ce biais.
         const allIds = participants.map(p => p.id).filter(Boolean);
         const statusJidList = allIds.filter(id => id.endsWith('@s.whatsapp.net'));
         const skippedCount = allIds.length - statusJidList.length;
-        const audienceNote = skippedCount > 0
-            ? `\n⚠️ *${skippedCount} membre(s) avec un numéro masqué (@lid) ne peuvent pas recevoir ce statut.*`
-            : '';
-        const privacyNote = `\n\nℹ️ *Si personne ne voit le statut :* sur le téléphone lié au bot, va dans WhatsApp → Paramètres → Confidentialité → Statut, et mets-le sur *"Tout le monde"*. WhatsApp bloque silencieusement les statuts envoyés à des numéros qui ne sont pas dans tes contacts si ce réglage n'est pas sur "Tout le monde".`;
 
-        if (statusJidList.length === 0) {
+        // On ne bloque QUE si on n'a même pas réussi à récupérer les membres du
+        // groupe (groupMetadata vide/indisponible). Si le groupe a bien des
+        // membres mais que TOUS ont un numéro masqué (@lid), on ne peut pas
+        // cibler précisément — on publie alors un statut normal (visible selon
+        // le réglage de confidentialité du compte) plutôt que de bloquer.
+        if (participants.length === 0) {
             return reply("❌ *Impossible de récupérer la liste des membres du groupe, réessaie dans un instant.*");
         }
+
+        const hasTargetableAudience = statusJidList.length > 0;
+        const audienceNote = !hasTargetableAudience
+            ? `\n⚠️ *Tous les membres de ce groupe ont un numéro masqué (@lid) : impossible de cibler précisément le groupe, le statut a été publié normalement (visible selon ton réglage de confidentialité).*`
+            : (skippedCount > 0
+                ? `\n⚠️ *${skippedCount} membre(s) avec un numéro masqué (@lid) ne peuvent pas recevoir ce statut.*`
+                : '');
+        const privacyNote = `\n\nℹ️ *Si personne ne voit le statut :* sur le téléphone lié au bot, va dans WhatsApp → Paramètres → Confidentialité → Statut, et mets-le sur *"Tout le monde"*. WhatsApp bloque silencieusement les statuts envoyés à des numéros qui ne sont pas dans tes contacts si ce réglage n'est pas sur "Tout le monde".`;
+        // N'inclure statusJidList dans les options d'envoi QUE s'il y a des
+        // destinataires ciblables ; sinon, l'omettre pour laisser WhatsApp
+        // publier un statut classique selon la confidentialité du compte.
+        const audienceOptions = hasTargetableAudience ? { statusJidList } : {};
 
         const resolved = resolveStatusSource(m);
         const extraText = args.join(' ').trim();
@@ -102,7 +114,7 @@ module.exports = {
                     [mediaField]: buffer,
                     caption: extraText || ''
                 }, {
-                    statusJidList,
+                    ...audienceOptions,
                     backgroundColor: randomColor(),
                     // Sans "broadcast: true", Baileys n'envoie pas toujours réellement
                     // le contenu comme un Statut ciblé à statusJidList : l'appel peut
@@ -111,7 +123,8 @@ module.exports = {
                 });
 
                 const label = resolved.kind === 'imageMessage' ? 'image' : 'vidéo';
-                return reply(`✅ *Statut ${label} publié, visible par les ${statusJidList.length} membre(s) du groupe.*${audienceNote}${privacyNote}`);
+                const audienceText = hasTargetableAudience ? `visible par les ${statusJidList.length} membre(s) du groupe` : `publié`;
+                return reply(`✅ *Statut ${label} ${audienceText}.*${audienceNote}${privacyNote}`);
             }
 
             // --- Cas texte cité (reply à un message texte), + texte ajouté en option ---
@@ -128,9 +141,10 @@ module.exports = {
                     text: finalText,
                     backgroundColor: color,
                     font: Math.floor(Math.random() * 5)
-                }, { statusJidList, broadcast: true });
+                }, { ...audienceOptions, broadcast: true });
 
-                return reply(`✅ *Statut publié, visible par les ${statusJidList.length} membre(s) du groupe.*${audienceNote}${privacyNote}`);
+                const audienceText = hasTargetableAudience ? `visible par les ${statusJidList.length} membre(s) du groupe` : `publié`;
+                return reply(`✅ *Statut ${audienceText}.*${audienceNote}${privacyNote}`);
             }
 
             // --- Cas par défaut : statut texte simple à partir des args ---
@@ -150,9 +164,10 @@ module.exports = {
                 text,
                 backgroundColor: color,
                 font: Math.floor(Math.random() * 5)
-            }, { statusJidList, broadcast: true });
+            }, { ...audienceOptions, broadcast: true });
 
-            return reply(`✅ *Statut publié, visible par les ${statusJidList.length} membre(s) du groupe.*${audienceNote}${privacyNote}`);
+            const audienceText = hasTargetableAudience ? `visible par les ${statusJidList.length} membre(s) du groupe` : `publié`;
+            return reply(`✅ *Statut ${audienceText}.*${audienceNote}${privacyNote}`);
         } catch (e) {
             console.error('gcstatus error:', e.message);
             return reply(`❌ *Échec de la publication du statut :* ${e.message}`);
