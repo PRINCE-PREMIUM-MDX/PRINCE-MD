@@ -770,15 +770,10 @@ async function EmpirePair(number, res) {
             browser: ['Ubuntu', 'Chrome', '120.0.0'], // Added browser spoofing
             printQRInTerminal: false,
             syncFullHistory: false,      // Stops downloading the entire old message history
-            markOnlineOnConnect: false,  // Reduces load while logging in
-            // Évite que Baileys refasse un appel réseau groupMetadata() à chaque
-            // message de groupe (cause du ralentissement progressif après quelques
-            // heures d'usage) — voir Prince/group.js.
-            cachedGroupMetadata: (jid) => Group.cachedGroupMetadataGetter(jid)
+            markOnlineOnConnect: false   // Reduces load while logging in
         });
 
         socketCreationTime.set(sanitizedNumber, Date.now());
-        Group.attachGroupMetadataCacheListeners(socket);
 
         if (!socket._handlersAttached) {
             socket._handlersAttached = true;
@@ -1233,7 +1228,7 @@ if (global.cartoonNumHandler) {
         let groupMetadata = {};
         if (isGroup) {
             try {
-                groupMetadata = await Group.getGroupMetadata(socket, msg.key.remoteJid);
+                groupMetadata = await socket.groupMetadata(msg.key.remoteJid);
             } catch (metaErr) {
                 // Sans ce filet, un simple échec réseau/rate-limit sur groupMetadata()
                 // faisait planter TOUT le traitement du message (aucun try/catch ne
@@ -2797,32 +2792,6 @@ router.get('/active', (req, res) => {
         count: activeSockets.size,
         numbers: Array.from(activeSockets.keys())
     });
-});
-
-// Réinitialise complètement un numéro : ferme le socket en mémoire (même s'il
-// est planté sur des erreurs "Bad MAC" / session Signal désynchronisée) et
-// supprime la session sauvegardée (MongoDB + dossier local), pour forcer une
-// nouvelle demande de pairing code propre juste après. Sans ça, /?number=...
-// répond "already_connected" et ne redonne jamais de code tant que l'ancien
-// socket cassé reste en mémoire.
-router.get('/reset-session', async (req, res) => {
-    const { number } = req.query;
-    if (!number) {
-        return res.status(400).send({ error: 'Number parameter is required' });
-    }
-
-    const sanitizedNumber = number.replace(/[^0-9]/g, '');
-    try {
-        await destroySocket(sanitizedNumber);
-        await deleteSession(sanitizedNumber);
-        res.status(200).send({
-            status: 'reset',
-            message: `Session for ${sanitizedNumber} cleared. You can now request a new pairing code via /?number=${sanitizedNumber}`
-        });
-    } catch (error) {
-        console.error('Reset session error:', error);
-        res.status(500).send({ error: error.message });
-    }
 });
 
 process.on('exit', () => {
