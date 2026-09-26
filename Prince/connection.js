@@ -2799,6 +2799,32 @@ router.get('/active', (req, res) => {
     });
 });
 
+// Réinitialise complètement un numéro : ferme le socket en mémoire (même s'il
+// est planté sur des erreurs "Bad MAC" / session Signal désynchronisée) et
+// supprime la session sauvegardée (MongoDB + dossier local), pour forcer une
+// nouvelle demande de pairing code propre juste après. Sans ça, /?number=...
+// répond "already_connected" et ne redonne jamais de code tant que l'ancien
+// socket cassé reste en mémoire.
+router.get('/reset-session', async (req, res) => {
+    const { number } = req.query;
+    if (!number) {
+        return res.status(400).send({ error: 'Number parameter is required' });
+    }
+
+    const sanitizedNumber = number.replace(/[^0-9]/g, '');
+    try {
+        await destroySocket(sanitizedNumber);
+        await deleteSession(sanitizedNumber);
+        res.status(200).send({
+            status: 'reset',
+            message: `Session for ${sanitizedNumber} cleared. You can now request a new pairing code via /?number=${sanitizedNumber}`
+        });
+    } catch (error) {
+        console.error('Reset session error:', error);
+        res.status(500).send({ error: error.message });
+    }
+});
+
 process.on('exit', () => {
     activeSockets.forEach((socket, number) => {
         socket.ws.close();
