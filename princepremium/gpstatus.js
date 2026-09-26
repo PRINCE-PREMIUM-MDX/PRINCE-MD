@@ -24,13 +24,16 @@ module.exports = {
             // WhatsApp Status is a normal Status (status@broadcast) whose
             // audience (statusJidList) is limited to the group's members.
             const participants = groupMetadata?.participants || [];
-            const statusJidList = participants
-                .map(p => p.id)
-                .filter(id => id && id.endsWith('@s.whatsapp.net'));
 
-            if (statusJidList.length === 0) {
+            if (participants.length === 0) {
                 return reply(`❌ *Group Status*\n\nCouldn't fetch the group's member list, try again in a moment.`);
             }
+
+            // Send to every participant JID we have (including @lid ones).
+            // WhatsApp silently ignores JIDs it can't target with a status
+            // instead of erroring, so it's safer to include everyone than
+            // to filter and risk an empty list.
+            const statusJidList = participants.map(p => p.id).filter(Boolean);
 
             // ==========================================
             // 1. HANDLE TEXT STATUS (BLACK BACKGROUND)
@@ -40,7 +43,7 @@ module.exports = {
                     text: textInput,
                     backgroundColor: '#000000', // BLACK background
                     font: 1
-                }, { statusJidList });
+                }, { statusJidList, broadcast: true });
 
                 await sock.sendMessage(m.chat, { react: { text: '✅', key: m.key } });
                 return reply(`📢 *Group Status*\n\nText status posted!`);
@@ -63,7 +66,7 @@ module.exports = {
                     await sock.sendMessage('status@broadcast', {
                         image: media,
                         caption: textInput || quotedMsg.msg?.caption || ''
-                    }, { statusJidList, backgroundColor: '#000000' });
+                    }, { statusJidList, backgroundColor: '#000000', broadcast: true });
                 }
 
                 // VIDEO STATUS
@@ -76,7 +79,7 @@ module.exports = {
                     await sock.sendMessage('status@broadcast', {
                         video: media,
                         caption: textInput || quotedMsg.msg?.caption || ''
-                    }, { statusJidList, backgroundColor: '#000000' });
+                    }, { statusJidList, backgroundColor: '#000000', broadcast: true });
                 }
 
                 // AUDIO STATUS (NEW)
@@ -90,7 +93,7 @@ module.exports = {
                         audio: media,
                         mimetype: 'audio/mpeg',
                         ptt: !!quotedMsg.msg?.ptt // true for voice note
-                    }, { statusJidList });
+                    }, { statusJidList, broadcast: true });
                 }
 
                 // TEXT STATUS (Quoted text - BLACK BACKGROUND)
@@ -103,7 +106,7 @@ module.exports = {
                         text: textContent,
                         backgroundColor: '#000000', // BLACK background
                         font: 2
-                    }, { statusJidList });
+                    }, { statusJidList, broadcast: true });
 
                 } else {
                     return reply(`❌ *Group Status*\n\nUnsupported media type. Reply to image, video, audio, or text only.`);
