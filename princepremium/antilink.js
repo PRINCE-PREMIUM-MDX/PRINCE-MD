@@ -1,6 +1,7 @@
 const fs = require('fs-extra');
 const path = require('path');
 const { jidNormalizedUser } = require('baileys');
+const Group = require('../Prince/group');
 
 const DATA_PATH = path.join(__dirname, '..', 'data', 'antilink.json');
 const LINK_REGEX = /(https?:\/\/|www\.)[^\s]+|chat\.whatsapp\.com\/[^\s]+|wa\.me\/[^\s]+|t\.me\/[^\s]+/i;
@@ -74,10 +75,25 @@ function initAntilink(socket) {
 
                 const participants = groupMetadata.participants || [];
                 const botJid = jidNormalizedUser(socket.user.id);
-                const isBotAdmin = participants.some(p => (p.id === botJid || p.id.split('@')[0] === socketId) && p.admin);
+                const botNumber = botJid.split('@')[0];
+                // WhatsApp migre certains groupes vers des identifiants @lid (Linked ID) au lieu du
+                // numéro classique @s.whatsapp.net, donc une simple comparaison de socketId échoue
+                // même si le bot EST bien admin (même logique que Prince/group.js::isBotAdmin).
+                const rawLid = socket.user.lid || socket.authState?.creds?.me?.lid || null;
+                const botLid = rawLid ? jidNormalizedUser(rawLid) : null;
+                const botLidNumber = botLid ? botLid.split('@')[0] : null;
+
+                const isBotAdmin = participants.some(p => {
+                    const isThisBot =
+                        p.id === botJid ||
+                        p.id.split('@')[0] === botNumber ||
+                        (botLid && p.id === botLid) ||
+                        (botLidNumber && p.id.split('@')[0] === botLidNumber);
+                    return isThisBot && (p.admin === 'admin' || p.admin === 'superadmin');
+                });
                 if (!isBotAdmin) return; // can't moderate without being admin
 
-                const isSenderAdmin = participants.some(p => p.id === participantJid && p.admin);
+                const isSenderAdmin = Group.isParticipantAdmin(participants, participantJid);
                 if (isSenderAdmin) return; // admins are exempt from antilink
 
                 try {
@@ -183,7 +199,7 @@ module.exports = {
                 `• .antilink warn\n` +
                 `• .antilink kick\n` +
                 `• .antilink delete\n\n` +
-                `> *BY INCONNU BOY*`
+                `> *BY PRINCE PREMIUM*`
             );
         } catch (e) {
             return reply(`❌ *Error:* ${e.message}`);
