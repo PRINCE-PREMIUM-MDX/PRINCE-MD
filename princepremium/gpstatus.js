@@ -1,134 +1,122 @@
-/**
- * groupstatus.js — Publie un Statut WhatsApp (story) visible par les membres
- * du groupe où la commande est tapée.
- *
- * Usage :
- *   .groupstatus <texte>
- *   (en réponse à une image/vidéo/audio) .groupstatus <légende optionnelle>
- *   (en réponse à un texte) .groupstatus
- *
- * Alias : togstatus, gstatus
- *
- * Note technique : WhatsApp n'a pas de "statut de groupe" séparé — on publie
- * un Statut normal (status@broadcast) dont l'audience (statusJidList) est
- * limitée aux membres du groupe.
- */
-
-function randomBackground() {
-    const colors = ['#7d3c98', '#1abc9c', '#e74c3c', '#2980b9', '#e67e22', '#16a085', '#8e44ad', '#c0392b'];
-    return colors[Math.floor(Math.random() * colors.length)];
-}
-
 module.exports = {
     name: "gpstatus",
     category: "group",
-    description: "📢 Publier un Statut WhatsApp (texte, image, vidéo ou audio cité) visible par les membres du groupe",
+    description: "📢 Group Status command",
     commands: ["gpstatus"],
 
-    handler: async ({ sock, msg, m, reply, args, isGroup, groupMetadata }) => {
+    handler: async ({ sock, m, reply, args, isGroup, groupMetadata, sessionConfig }) => {
         if (!isGroup) {
-            return reply(`👥 *Group Status*\n\nCette commande fonctionne uniquement dans un groupe.`);
-        }
-
-        const quoted = m.quoted;
-        const textInput = (args || []).join(' ').trim();
-
-        if (!quoted && !textInput) {
-            return reply(`📢 *Group Status*\n\nRéponds à une image/vidéo/audio, ou donne un texte à publier.\n\nExemple : .gstatus Hello group!`);
-        }
-
-        // Audience : uniquement les membres avec un JID classique (@s.whatsapp.net)
-        const participants = groupMetadata?.participants || [];
-        const allIds = participants.map(p => p.id).filter(Boolean);
-        const statusJidList = allIds.filter(id => id.endsWith('@s.whatsapp.net'));
-
-        if (statusJidList.length === 0) {
-            return reply(`❌ *Group Status*\n\nImpossible de récupérer la liste des membres du groupe, réessaie dans un instant.`);
+            return reply(`👥 *Group Status*\n\nThis command can only be used in groups.`);
         }
 
         try {
             await sock.sendMessage(m.chat, { react: { text: '📢', key: m.key } });
 
-            // ==========================================
-            // 1. TEXTE SIMPLE (pas de message cité)
-            // ==========================================
-            if (!quoted && textInput) {
-                await sock.sendMessage('status@broadcast', {
-                    text: textInput,
-                    backgroundColor: randomBackground(),
-                    font: Math.floor(Math.random() * 5)
-                }, { statusJidList });
+            // Check if replying to a message or providing text
+            const quotedMsg = m.quoted;
+            const textInput = args.join(' ').trim();
+
+            if (!quotedMsg && !textInput) {
+                return reply(`📢 *Group Status*\n\nReply to an image/video/audio or provide text to post as group status.\n\nExample: ${sessionConfig.PREFIX || '!'}gstatus Hello group!`);
+            }
+
+            // PRINCE-MD has no fake "group status" message type — a real
+            // WhatsApp Status is a normal Status (status@broadcast) whose
+            // audience (statusJidList) is limited to the group's members.
+            const participants = groupMetadata?.participants || [];
+            const statusJidList = participants
+                .map(p => p.id)
+                .filter(id => id && id.endsWith('@s.whatsapp.net'));
+
+            if (statusJidList.length === 0) {
+                return reply(`❌ *Group Status*\n\nCouldn't fetch the group's member list, try again in a moment.`);
             }
 
             // ==========================================
-            // 2. MESSAGE CITÉ (média ou texte)
+            // 1. HANDLE TEXT STATUS (BLACK BACKGROUND)
             // ==========================================
-            else if (quoted) {
-                const mime = quoted.msg?.mimetype || '';
+            if (!quotedMsg && textInput) {
+                await sock.sendMessage('status@broadcast', {
+                    text: textInput,
+                    backgroundColor: '#000000', // BLACK background
+                    font: 1
+                }, { statusJidList });
 
-                // IMAGE
+                await sock.sendMessage(m.chat, { react: { text: '✅', key: m.key } });
+                return reply(`📢 *Group Status*\n\nText status posted!`);
+            }
+
+            // ==========================================
+            // 2. HANDLE QUOTED MEDIA/TEXT
+            // ==========================================
+            else if (quotedMsg) {
+                // Check if it's a media message
+                const mime = (quotedMsg.msg || quotedMsg).mimetype || '';
+
+                // IMAGE STATUS
                 if (/image/.test(mime)) {
-                    const media = await quoted.download();
-                    if (!media) return reply(`❌ *Group Status*\n\nÉchec du téléchargement de l'image.`);
+                    // Download image
+                    let media = await quotedMsg.download();
+                    if (!media) return reply(`❌ *Group Status*\n\nFailed to download the image.`);
+
+                    // Send as image status
                     await sock.sendMessage('status@broadcast', {
                         image: media,
-                        caption: textInput || quoted.msg?.caption || ''
-                    }, { statusJidList, backgroundColor: randomBackground() });
+                        caption: textInput || quotedMsg.msg?.caption || ''
+                    }, { statusJidList, backgroundColor: '#000000' });
                 }
 
-                // VIDÉO
+                // VIDEO STATUS
                 else if (/video/.test(mime)) {
-                    const media = await quoted.download();
-                    if (!media) return reply(`❌ *Group Status*\n\nÉchec du téléchargement de la vidéo.`);
+                    // Download video
+                    let media = await quotedMsg.download();
+                    if (!media) return reply(`❌ *Group Status*\n\nFailed to download the video.`);
+
+                    // Send as video status
                     await sock.sendMessage('status@broadcast', {
                         video: media,
-                        caption: textInput || quoted.msg?.caption || ''
-                    }, { statusJidList, backgroundColor: randomBackground() });
+                        caption: textInput || quotedMsg.msg?.caption || ''
+                    }, { statusJidList, backgroundColor: '#000000' });
                 }
 
-                // AUDIO
+                // AUDIO STATUS (NEW)
                 else if (/audio/.test(mime)) {
-                    const media = await quoted.download();
-                    if (!media) return reply(`❌ *Group Status*\n\nÉchec du téléchargement de l'audio.`);
+                    // Download audio
+                    let media = await quotedMsg.download();
+                    if (!media) return reply(`❌ *Group Status*\n\nFailed to download the audio.`);
+
+                    // Send as audio status
                     await sock.sendMessage('status@broadcast', {
                         audio: media,
                         mimetype: 'audio/mpeg',
-                        ptt: !!quoted.msg?.ptt
+                        ptt: !!quotedMsg.msg?.ptt // true for voice note
                     }, { statusJidList });
                 }
 
-                // TEXTE CITÉ
-                else if (quoted.type === 'conversation' || quoted.type === 'extendedTextMessage') {
-                    const quotedText = quoted.type === 'conversation'
-                        ? quoted.msg
-                        : (quoted.msg?.text || '');
-                    const finalText = textInput && quotedText
-                        ? `${quotedText}\n\n${textInput}`
-                        : (quotedText || textInput);
-
-                    if (!finalText) {
-                        return reply(`❗ *Group Status*\n\nLe message cité ne contient pas de texte.`);
-                    }
+                // TEXT STATUS (Quoted text - BLACK BACKGROUND)
+                else if (quotedMsg.type === 'conversation' || quotedMsg.type === 'extendedTextMessage') {
+                    const textContent = (quotedMsg.type === 'conversation'
+                        ? quotedMsg.msg
+                        : quotedMsg.msg?.text) || textInput;
 
                     await sock.sendMessage('status@broadcast', {
-                        text: finalText,
-                        backgroundColor: randomBackground(),
-                        font: Math.floor(Math.random() * 5)
+                        text: textContent,
+                        backgroundColor: '#000000', // BLACK background
+                        font: 2
                     }, { statusJidList });
+
+                } else {
+                    return reply(`❌ *Group Status*\n\nUnsupported media type. Reply to image, video, audio, or text only.`);
                 }
 
-                else {
-                    return reply(`❌ *Group Status*\n\nType de média non supporté. Réponds à une image, vidéo, audio ou un texte.`);
-                }
+                await sock.sendMessage(m.chat, { react: { text: '✅', key: m.key } });
+                reply(`📢 *Group Status*\n\nStatus posted!`);
             }
-
-            await sock.sendMessage(m.chat, { react: { text: '✅', key: m.key } });
-            return reply(`📢 *Group Status*\n\nStatut publié, visible par ${statusJidList.length} membre(s) du groupe.`);
 
         } catch (error) {
             console.error('Group Status Error:', error);
             await sock.sendMessage(m.chat, { react: { text: '❌', key: m.key } });
-            return reply(`⚠️ *Group Status*\n\nÉchec : ${error.message}`);
+            reply(`⚠️ *Group Status*\n\nFailed: ${error.message}`);
         }
     }
 };
