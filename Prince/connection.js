@@ -92,13 +92,6 @@ const socketHandlersMap = new Map();
 // synchronisation périodique, seule creds.json aurait été sauvegardée en
 // continu et les clés de session seraient reperdues au prochain redémarrage.
 const sessionSyncIntervals = new Map();
-// Compteur de tentatives de reconnexion PAR NUMÉRO, stocké ici (et non comme
-// variable locale de setupAutoRestart) pour qu'il survive à la recréation du
-// socket. Sans ça, chaque nouvel appel à EmpirePair repartait avec un compteur
-// remis à 0, la limite de 5 tentatives + pause de 5 min ne se déclenchait
-// jamais, et le bot pouvait marteler WhatsApp jusqu'au rate-limit — ce qui
-// l'empêchait de rester connecté.
-const reconnectAttemptsMap = new Map();
 const SESSION_BASE_PATH = './session';
 const NUMBER_LIST_PATH = './numbers.json';
 
@@ -418,13 +411,14 @@ async function setupMessageHandlers(socket) {
 function setupAutoRestart(socket, number) {
     const id = number;
     let reconnecting = false;
+    let reconnectAttempts = 0;
     const MAX_RECONNECT_ATTEMPTS = 5;
 
     socket.ev.on('connection.update', async ({ connection, lastDisconnect }) => {
 
         if (connection === 'open') {
             reconnecting = false;
-            reconnectAttemptsMap.set(id, 0);
+            reconnectAttempts = 0;
             return;
         }
 
@@ -442,16 +436,11 @@ function setupAutoRestart(socket, number) {
         if (permanentFailureCodes.includes(statusCode)) {
             await destroySocket(id);
             await deleteSession(id);
-            reconnectAttemptsMap.delete(id);
             reconnecting = false;
             return;
         }
 
-        // Compteur persistant (module-level), pas une variable locale : sinon
-        // il repartait de 0 à chaque nouveau socket et la limite ci-dessous
-        // n'était jamais atteinte.
-        const reconnectAttempts = (reconnectAttemptsMap.get(id) || 0) + 1;
-        reconnectAttemptsMap.set(id, reconnectAttempts);
+        reconnectAttempts++;
         if (reconnectAttempts > MAX_RECONNECT_ATTEMPTS) {
             // Avant : on abandonnait pour toujours ici (le bot restait déconnecté
             // jusqu'à une reconnexion manuelle via le site). Sur un hébergement
@@ -461,7 +450,7 @@ function setupAutoRestart(socket, number) {
             // puis réessayer avec un compteur remis à zéro plutôt que d'abandonner.
             console.error(`[${id}] Trop de tentatives de reconnexion (${reconnectAttempts}), pause de 5 minutes avant nouvel essai.`);
             await destroySocket(id);
-            reconnectAttemptsMap.set(id, 0);
+            reconnectAttempts = 0;
             await delay(5 * 60 * 1000);
             reconnecting = false;
             const mockResCooldown = { headersSent: true, send() {}, status() { return this } };
@@ -781,10 +770,15 @@ async function EmpirePair(number, res) {
             browser: ['Ubuntu', 'Chrome', '120.0.0'], // Added browser spoofing
             printQRInTerminal: false,
             syncFullHistory: false,      // Stops downloading the entire old message history
-            markOnlineOnConnect: false   // Reduces load while logging in
+            markOnlineOnConnect: false,  // Reduces load while logging in
+            // Évite que Baileys refasse un appel réseau groupMetadata() à chaque
+            // message de groupe (cause du ralentissement progressif après quelques
+            // heures d'usage) — voir Prince/group.js.
+            cachedGroupMetadata: (jid) => Group.cachedGroupMetadataGetter(jid)
         });
 
         socketCreationTime.set(sanitizedNumber, Date.now());
+        Group.attachGroupMetadataCacheListeners(socket);
 
         if (!socket._handlersAttached) {
             socket._handlersAttached = true;
@@ -1239,7 +1233,7 @@ if (global.cartoonNumHandler) {
         let groupMetadata = {};
         if (isGroup) {
             try {
-                groupMetadata = await socket.groupMetadata(msg.key.remoteJid);
+                groupMetadata = await Group.getGroupMetadata(socket, msg.key.remoteJid);
             } catch (metaErr) {
                 // Sans ce filet, un simple échec réseau/rate-limit sur groupMetadata()
                 // faisait planter TOUT le traitement du message (aucun try/catch ne
