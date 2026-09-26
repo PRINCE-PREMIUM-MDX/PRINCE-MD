@@ -68,7 +68,7 @@ function initAntilink(socket) {
 
                 let groupMetadata;
                 try {
-                    groupMetadata = await socket.groupMetadata(remoteJid);
+                    groupMetadata = await Group.getGroupMetadata(socket, remoteJid);
                 } catch (e) {
                     return;
                 }
@@ -158,7 +158,7 @@ module.exports = {
         if (!isGroup) return reply('👥 *This command only works in groups.*');
 
         try {
-            const groupMetadata = await socket.groupMetadata(sender);
+            const groupMetadata = await Group.getGroupMetadata(socket, sender);
             const participants = groupMetadata.participants || [];
             const senderJid = senderNumber + '@s.whatsapp.net';
             const isSenderAdmin = participants.some(p => p.id === senderJid && p.admin);

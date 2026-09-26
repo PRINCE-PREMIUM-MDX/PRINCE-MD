@@ -1,6 +1,7 @@
 const fs = require('fs-extra');
 const path = require('path');
 const { jidNormalizedUser } = require('baileys');
+const Group = require('../Prince/group');
 
 const DATA_PATH = path.join(__dirname, '..', 'data', 'groupguard.json');
 
@@ -71,7 +72,7 @@ function initGroupGuard(socket) {
 
                 let groupMetadata;
                 try {
-                    groupMetadata = await socket.groupMetadata(remoteJid);
+                    groupMetadata = await Group.getGroupMetadata(socket, remoteJid);
                 } catch (e) {
                     return;
                 }

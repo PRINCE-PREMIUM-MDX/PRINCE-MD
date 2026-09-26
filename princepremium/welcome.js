@@ -2,6 +2,7 @@ const fs = require('fs-extra');
 const path = require('path');
 const moment = require('moment-timezone');
 const { jidNormalizedUser } = require('baileys');
+const Group = require('../Prince/group');
 
 const DATA_PATH = path.join(__dirname, '..', 'data', 'welcome.json');
 const FALLBACK_IMG = 'https://files.catbox.moe/ne8vy5.png';
@@ -64,7 +65,7 @@ function initWelcome(socket) {
 
                 let groupMetadata;
                 try {
-                    groupMetadata = await socket.groupMetadata(groupId);
+                    groupMetadata = await Group.getGroupMetadata(socket, groupId);
                 } catch (e) {
                     return;
                 }
@@ -125,7 +126,7 @@ module.exports = {
         if (!isGroup) return reply('👥 *This command only works in groups.*');
 
         try {
-            const groupMetadata = await socket.groupMetadata(sender);
+            const groupMetadata = await Group.getGroupMetadata(socket, sender);
             const participants = groupMetadata.participants || [];
             const senderJid = senderNumber + '@s.whatsapp.net';
             const isSenderAdmin = participants.some(p => p.id === senderJid && p.admin);
