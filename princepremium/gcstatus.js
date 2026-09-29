@@ -85,7 +85,17 @@ module.exports = {
         const privacyNote = `\n\nℹ️ *Si personne ne voit le statut :* sur le téléphone lié au bot, va dans WhatsApp → Paramètres → Confidentialité → Statut, et mets-le sur *"Tout le monde"*. WhatsApp bloque silencieusement les statuts envoyés à des numéros qui ne sont pas dans tes contacts si ce réglage n'est pas sur "Tout le monde".`;
 
         if (statusJidList.length === 0) {
-            return reply("❌ *Impossible de récupérer la liste des membres du groupe, réessaie dans un instant.*");
+            if (allIds.length === 0) {
+                return reply("❌ *Impossible de récupérer la liste des membres du groupe, réessaie dans un instant.*");
+            }
+            // La liste des membres a bien été récupérée (allIds > 0), mais
+            // AUCUN n'a un JID "@s.whatsapp.net" classique — ils utilisent
+            // tous un numéro masqué (@lid). C'est une limitation WhatsApp,
+            // pas un bug : un statut ciblé ne peut pas les atteindre.
+            return reply(
+                `❌ *Aucun des ${allIds.length} membre(s) de ce groupe ne peut recevoir un statut ciblé.*\n` +
+                `Ils utilisent tous un numéro masqué (@lid) — c'est une limitation de WhatsApp, pas un bug du bot.`
+            );
         }
 
         const resolved = resolveStatusSource(m);
