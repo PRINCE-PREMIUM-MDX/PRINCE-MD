@@ -1,132 +1,132 @@
 /**
- * gstatus.js — Poste un "Group Status" dans le groupe où la commande est tapée.
+ * gstatus.js — Poste un Statut WhatsApp (status@broadcast) : texte, image,
+ * vidéo, audio ou sticker.
  *
- * Commandes : .groupstatus / .gcstatus / .togstatus / .gstatus
+ * Commandes : .groupstatus / .gstatus / .poststatus / .statuspost
  *
  * Usage :
- *   .gstatus <texte>                    → statut texte, fond noir
- *   (image/vidéo + légende .gstatus)    → statut média
- *   (réponse à image/vidéo/audio)       .gstatus <légende optionnelle>
- *
- * Réservé aux admins du groupe (et au owner).
- * Remplace l'ancien princepremium/gstatus.js (mêmes commandes).
+ *   .gstatus <texte>                       → statut texte
+ *   (en réponse à une image)  .gstatus <légende optionnelle>
+ *   (en réponse à une vidéo)  .gstatus <légende optionnelle>
+ *   (en réponse à un audio)   .gstatus
+ *   (en réponse à un sticker) .gstatus
  */
 
-const { downloadMediaMessage } = require('baileys');
-
 module.exports = {
-    name: 'gstatus',
-    category: 'group',
-    description: '📢 Poster un Group Status (texte, image, vidéo ou audio)',
-    commands: ['groupstatus', 'gcstatus', 'togstatus', 'gstatus'],
+    name: "gstatus",
+    category: "group",
+    description: "📡 Poster un Statut WhatsApp (texte, image, vidéo, audio ou sticker cité)",
+    commands: ["groupstatus", "gstatus", "poststatus", "statuspost"],
 
-    handler: async ({ sock, msg, args, reply, isGroup, isAdmin, isOwner, groupMetadata, command }) => {
-        const from = msg.key.remoteJid;
-
-        const react = (emoji) =>
-            sock.sendMessage(from, { react: { text: emoji, key: msg.key } }).catch(() => {});
-
-        if (!isGroup) return reply('👥 *Group Status*\n\nCette commande est réservée aux groupes.');
-        if (!isAdmin && !isOwner) return reply('❌ *Seuls les admins peuvent utiliser cette commande !*');
-
-        await react('📢');
-
+    handler: async ({ sock, m, reply, args }) => {
         try {
-            // Déballe les messages éphémères / view-once éventuels
-            let content = msg.message || {};
-            if (content.ephemeralMessage) content = content.ephemeralMessage.message || content;
-            if (content.viewOnceMessage) content = content.viewOnceMessage.message || content;
+            await m.react('📡');
 
-            const directIm = content.imageMessage;
-            const directVm = content.videoMessage;
-            const directAm = content.audioMessage;
-            const isDirect = !!(directIm || directVm || directAm);
-
-            const ctx =
-                content.extendedTextMessage?.contextInfo ||
-                directIm?.contextInfo ||
-                directVm?.contextInfo ||
-                directAm?.contextInfo;
-            const quotedMsgObj = ctx?.quotedMessage;
-
-            const im = directIm || quotedMsgObj?.imageMessage;
-            const vm = directVm || quotedMsgObj?.videoMessage;
-            const am = directAm || quotedMsgObj?.audioMessage;
             const caption = args.join(' ').trim();
+            const quoted = m.quoted;
 
-            if (!im && !vm && !am && !caption) {
-                await react('❗');
+            // ==========================================
+            // TEXTE
+            // ==========================================
+            if (!quoted && caption) {
+                await sock.sendMessage("status@broadcast", {
+                    text:
+`╭━━〔 PRINCE MD 〕━━⬣
+┃ 👤 User : ${m.pushName || 'Guest'}
+┃ ⏰ Time : ${new Date().toLocaleString()}
+┃
+┃ 💬 Message:
+┃ ${caption}
+╰━━━━━━━━━━━━━━━━⬣`
+                });
+
+                await m.react('✅');
+                return reply("✅ Text status posted successfully.");
+            }
+
+            if (!quoted) {
                 return reply(
-                    `❗ *Usage :* .${command} <texte>\n` +
-                    `Ou mets .${command} en légende d'une image/vidéo, ` +
-                    `ou réponds à un média avec .${command} <légende optionnelle>`
+                    "❌ Reply to an image, video, audio, or sticker.\n\nExample:\n.gstatus Hello World"
                 );
             }
 
-            let meta = groupMetadata;
-            if (!meta?.participants) meta = await sock.groupMetadata(from);
-            const participants = (meta?.participants || []).map((p) => p.id);
+            const type = quoted.type || '';
+            const media = await quoted.download();
 
-            // ---------- Statut texte ----------
-            if (!im && !vm && !am) {
-                await sock.sendMessage(
-                    from,
-                    {
-                        text: caption,
-                        contextInfo: { mentionedJid: participants, isGroupStatus: true },
-                    },
-                    { backgroundColor: '#000000', statusJidList: participants }
-                );
-                await react('✅');
-                return reply('🎉 Group Status posté avec succès !');
-            }
+            // ==========================================
+            // IMAGE
+            // ==========================================
+            if (type === 'imageMessage') {
+                await sock.sendMessage("status@broadcast", {
+                    image: media,
+                    caption:
+`📸 PRINCE MD
 
-            // ---------- Téléchargement du média ----------
-            let buf;
-            if (isDirect) {
-                buf = await downloadMediaMessage(msg, 'buffer', {}, {
-                    logger: undefined,
-                    reuploadRequest: sock.updateMediaMessage,
+👤 Posted By: ${m.pushName || 'Guest'}
+🕒 ${new Date().toLocaleString()}
+
+${caption || "No Caption"}`
                 });
-            } else {
-                const fakeMsg = {
-                    key: {
-                        remoteJid: from,
-                        id: ctx?.stanzaId || 'GCSTATUS',
-                        fromMe: false,
-                        participant: ctx?.participant,
-                    },
-                    message: im ? { imageMessage: im } : vm ? { videoMessage: vm } : { audioMessage: am },
-                };
-                buf = await downloadMediaMessage(fakeMsg, 'buffer', {}, {
-                    logger: undefined,
-                    reuploadRequest: sock.updateMediaMessage,
+
+                await m.react('✅');
+                return reply("✅ Image status posted.");
+            }
+
+            // ==========================================
+            // VIDÉO
+            // ==========================================
+            if (type === 'videoMessage') {
+                await sock.sendMessage("status@broadcast", {
+                    video: media,
+                    caption:
+`🎥 PRINCE MD
+
+👤 Posted By: ${m.pushName || 'Guest'}
+🕒 ${new Date().toLocaleString()}
+
+${caption || "No Caption"}`
                 });
+
+                await m.react('✅');
+                return reply("✅ Video status posted.");
             }
 
-            if (!buf || !buf.length) throw new Error('Impossible de télécharger le média.');
+            // ==========================================
+            // AUDIO
+            // ==========================================
+            if (type === 'audioMessage') {
+                await sock.sendMessage("status@broadcast", {
+                    audio: media,
+                    mimetype: "audio/mp4",
+                    ptt: false
+                });
 
-            // ---------- Envoi ----------
-            const contextInfo = { mentionedJid: participants, isGroupStatus: true };
-
-            if (im) {
-                await sock.sendMessage(from, { image: buf, caption, contextInfo }, { statusJidList: participants });
-            } else if (vm) {
-                await sock.sendMessage(from, { video: buf, caption, contextInfo }, { statusJidList: participants });
-            } else if (am) {
-                await sock.sendMessage(
-                    from,
-                    { audio: buf, mimetype: 'audio/mp4', ptt: false, contextInfo },
-                    { statusJidList: participants }
-                );
+                await m.react('✅');
+                return reply("✅ Audio status posted.");
             }
 
-            await react('✅');
-            return reply('🎉 Group Status posté avec succès !');
-        } catch (e) {
-            console.error('GroupStatus Error:', e);
-            await react('❌');
-            return reply(`❌ ${e.message}`);
+            // ==========================================
+            // STICKER
+            // ==========================================
+            if (type === 'stickerMessage') {
+                await sock.sendMessage("status@broadcast", {
+                    sticker: media
+                });
+
+                await m.react('✅');
+                return reply("✅ Sticker status posted.");
+            }
+
+            return reply("❌ Unsupported media type.");
+
+        } catch (err) {
+            console.error("GSTATUS ERROR:", err);
+            await m.react('❌');
+            return reply(
+`❌ PRINCE MD STATUS ERROR
+
+${err.message}`
+            );
         }
-    },
+    }
 };
