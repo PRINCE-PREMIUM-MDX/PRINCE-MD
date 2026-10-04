@@ -97,10 +97,23 @@ const SESSION_BASE_PATH = './session';
 const pairingTimers = new Map();
 const PAIRING_TIMEOUT = 3 * 60 * 1000;
 
-// Un socket est "appairé" quand WhatsApp a validé le code (creds.me existe)
+// ATTENTION : Baileys remplit creds.me DÈS la demande du code (requestPairingCode),
+// donc creds.me ne prouve rien. creds.account (identité signée par WhatsApp)
+// n'existe qu'une fois le code réellement validé sur le téléphone.
+function credsArePaired(c) {
+    return !!(c && (c.registered || c.account));
+}
 function isPaired(sock) {
-    const c = sock?.authState?.creds;
-    return !!(c && (c.registered || c.me?.id));
+    return credsArePaired(sock?.authState?.creds);
+}
+function localSessionPaired(sessionPath) {
+    try {
+        const f = path.join(sessionPath, 'creds.json');
+        if (!fs.existsSync(f)) return false;
+        return credsArePaired(JSON.parse(fs.readFileSync(f, 'utf8')));
+    } catch {
+        return false;
+    }
 }
 const NUMBER_LIST_PATH = './numbers.json';
 
@@ -313,9 +326,15 @@ async function autoReconnectOnStartup() {
             console.log(`Loaded ${numbers.length} numbers from numbers.json`);
         }
 
-        const sessions = await Session.find({}, 'number').lean();
-        const mongoNumbers = sessions.map(s => s.number);
-        numbers = [...new Set([...numbers, ...mongoNumbers])];
+        const sessions = await Session.find({}, 'number creds').lean();
+        // Seules les sessions réellement appairées sont reconnectées. Les anciens
+        // essais de pairing ratés sont supprimés au passage.
+        const mongoNumbers = [];
+        for (const s of sessions) {
+            if (credsArePaired(s.creds)) mongoNumbers.push(s.number);
+            else await Session.deleteOne({ number: s.number }).catch(() => {});
+        }
+        numbers = [...new Set(mongoNumbers)];
 
         if (numbers.length === 0) {
             console.log('No numbers found for auto-reconnect');
@@ -439,7 +458,7 @@ function setupAutoRestart(socket, number) {
 
         // Pairing jamais terminé (mauvais code, code expiré...) : on nettoie tout
         // au lieu de reconnecter en boucle, pour pouvoir redemander un code.
-        if (!isPaired(socket)) {
+        if (!isPaired(socket) && statusCode !== 515) {
             console.log(`[${id}] Pairing non terminé, nettoyage de la session.`);
             await resetPairing(id);
             reconnecting = false;
@@ -532,7 +551,7 @@ async function resetPairing(id) {
     try { fs.removeSync(path.join(SESSION_BASE_PATH, `session_${id}`)); } catch {}
     try {
         const doc = await Session.findOne({ number: id }, 'creds').lean();
-        if (doc && !(doc.creds?.registered || doc.creds?.me?.id)) {
+        if (doc && !credsArePaired(doc.creds)) {
             await Session.deleteOne({ number: id });
         }
     } catch (e) {
@@ -560,6 +579,10 @@ function readSessionFolder(sessionPath) {
 }
 
 async function saveSession(number, creds) {
+    // Une session en cours de pairing (code demandé mais pas encore saisi) ne doit
+    // jamais être sauvegardée : au redémarrage, elle serait "reconnectée" et
+    // enverrait des codes fantômes qui invalident le code affiché à l'utilisateur.
+    if (!credsArePaired(creds)) return;
     const sanitizedNumber = String(number).replace(/[^0-9]/g, '');
     try {
         const sessionPath = path.join(SESSION_BASE_PATH, `session_${sanitizedNumber}`);
@@ -601,7 +624,7 @@ async function restoreSession(number) {
 
             return null;
         }
-        if (!session.creds || !session.creds.me || !session.creds.me.id) {
+        if (!session.creds || !session.creds.me || !session.creds.me.id || !credsArePaired(session.creds)) {
             console.error(`Invalid session data for ${sanitizedNumber}`);
             await deleteSession(sanitizedNumber);
             return null;
@@ -803,7 +826,7 @@ async function EmpirePair(number, res) {
         const restoredCreds = await restoreSession(sanitizedNumber);
         // Pas de session valide en base : on repart d'un dossier vide pour ne pas
         // réutiliser les restes d'une tentative de pairing précédente.
-        if (!restoredCreds) {
+        if (!restoredCreds && !localSessionPaired(sessionPath)) {
             try { fs.removeSync(sessionPath); } catch {}
         }
         const { state, saveCreds } = await useMultiFileAuthState(sessionPath);
