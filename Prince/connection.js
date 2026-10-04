@@ -93,6 +93,15 @@ const socketHandlersMap = new Map();
 // continu et les clés de session seraient reperdues au prochain redémarrage.
 const sessionSyncIntervals = new Map();
 const SESSION_BASE_PATH = './session';
+// Minuteurs d'expiration des tentatives de pairing (un par numéro)
+const pairingTimers = new Map();
+const PAIRING_TIMEOUT = 3 * 60 * 1000;
+
+// Un socket est "appairé" quand WhatsApp a validé le code (creds.me existe)
+function isPaired(sock) {
+    const c = sock?.authState?.creds;
+    return !!(c && (c.registered || c.me?.id));
+}
 const NUMBER_LIST_PATH = './numbers.json';
 
 const SessionSchema = new mongoose.Schema({
@@ -428,6 +437,15 @@ function setupAutoRestart(socket, number) {
         const statusCode = lastDisconnect?.error?.output?.statusCode;
         console.warn(`[${id}] Connection closed | code:`, statusCode);
 
+        // Pairing jamais terminé (mauvais code, code expiré...) : on nettoie tout
+        // au lieu de reconnecter en boucle, pour pouvoir redemander un code.
+        if (!isPaired(socket)) {
+            console.log(`[${id}] Pairing non terminé, nettoyage de la session.`);
+            await resetPairing(id);
+            reconnecting = false;
+            return;
+        }
+
         // Ces codes signifient que la session est définitivement invalide : la
         // supprimer et arrêter, plutôt que de reconnecter en boucle avec de
         // vieilles clés (ce qui produit des codes/QR rejetés en rafale et peut
@@ -499,6 +517,26 @@ async function destroySocket(id) {
     if (sessionSyncIntervals.has(id)) {
         clearInterval(sessionSyncIntervals.get(id));
         sessionSyncIntervals.delete(id);
+    }
+}
+
+// Remet un numéro à zéro après une tentative de pairing ratée/expirée :
+// ferme le socket, supprime la session locale et la session non validée en base.
+// Sans ça, le numéro restait "occupé" et on ne pouvait plus redemander de code.
+async function resetPairing(id) {
+    if (pairingTimers.has(id)) {
+        clearTimeout(pairingTimers.get(id));
+        pairingTimers.delete(id);
+    }
+    await destroySocket(id);
+    try { fs.removeSync(path.join(SESSION_BASE_PATH, `session_${id}`)); } catch {}
+    try {
+        const doc = await Session.findOne({ number: id }, 'creds').lean();
+        if (doc && !(doc.creds?.registered || doc.creds?.me?.id)) {
+            await Session.deleteOne({ number: id });
+        }
+    } catch (e) {
+        console.error('resetPairing DB error:', e.message);
     }
 }
 
@@ -749,8 +787,11 @@ async function EmpirePair(number, res) {
     const sessionPath = path.join(SESSION_BASE_PATH, `session_${sanitizedNumber}`);
 
     if (activeSockets.has(sanitizedNumber)) {
-        try { activeSockets.get(sanitizedNumber).socket?.end?.(); } catch {}
-        activeSockets.delete(sanitizedNumber);
+        await destroySocket(sanitizedNumber);
+    }
+    if (pairingTimers.has(sanitizedNumber)) {
+        clearTimeout(pairingTimers.get(sanitizedNumber));
+        pairingTimers.delete(sanitizedNumber);
     }
 
     try {
@@ -759,7 +800,12 @@ async function EmpirePair(number, res) {
         // seule chez l'hébergeur, etc.) plantait la requête sans jamais répondre au
         // site — et pouvait même faire crasher tout le process Node (rejet de
         // promesse non intercepté).
-        await restoreSession(sanitizedNumber);
+        const restoredCreds = await restoreSession(sanitizedNumber);
+        // Pas de session valide en base : on repart d'un dossier vide pour ne pas
+        // réutiliser les restes d'une tentative de pairing précédente.
+        if (!restoredCreds) {
+            try { fs.removeSync(sessionPath); } catch {}
+        }
         const { state, saveCreds } = await useMultiFileAuthState(sessionPath);
         const { version } = await fetchLatestBaileysVersion();
 
@@ -804,6 +850,17 @@ async function EmpirePair(number, res) {
                 }
             }
             if (!res.headersSent) res.send({ code });
+
+            // Si le code n'est pas validé dans le délai, on libère le numéro
+            const timer = setTimeout(async () => {
+                pairingTimers.delete(sanitizedNumber);
+                const current = activeSockets.get(sanitizedNumber);
+                if (current?.socket === socket && !isPaired(socket)) {
+                    console.log(`[${sanitizedNumber}] Code expiré, session libérée.`);
+                    await resetPairing(sanitizedNumber);
+                }
+            }, PAIRING_TIMEOUT);
+            pairingTimers.set(sanitizedNumber, timer);
         } else if (!res.headersSent) {
             // Session déjà enregistrée mais pas encore reconnectée : répondre tout de
             // suite pour ne pas laisser la requête du site web attendre indéfiniment.
@@ -826,6 +883,10 @@ async function EmpirePair(number, res) {
             
             if (connection === 'open') {
                 console.log(`✅ Connection opened for ${sanitizedNumber}`);
+                if (pairingTimers.has(sanitizedNumber)) {
+                    clearTimeout(pairingTimers.get(sanitizedNumber));
+                    pairingTimers.delete(sanitizedNumber);
+                }
 
 				await socket.sendPresenceUpdate('unavailable');
 				
@@ -962,6 +1023,10 @@ async function EmpirePair(number, res) {
     } catch (error) {
         console.error(`EmpirePair failed for ${sanitizedNumber}:`, error);
         socketCreationTime.delete(sanitizedNumber);
+        const failed = activeSockets.get(sanitizedNumber);
+        if (!failed || !isPaired(failed.socket)) {
+            await resetPairing(sanitizedNumber);
+        }
         if (!res.headersSent) {
             res.status(503).send({ error: 'Service Unavailable', message: error?.message || 'Unknown error' });
         }
@@ -2775,11 +2840,22 @@ router.get('/', async (req, res) => {
     }
 
     const sanitizedNumber = number.replace(/[^0-9]/g, '');
-    if (activeSockets.has(sanitizedNumber)) {
+    if (sanitizedNumber.length < 8) {
+        return res.status(400).send({ error: 'Invalid number' });
+    }
+
+    const current = activeSockets.get(sanitizedNumber);
+    if (current && isPaired(current.socket)) {
         return res.status(200).send({
             status: 'already_connected',
             message: 'This number is already connected'
         });
+    }
+
+    // Tentative précédente non terminée (mauvais code, expiré...) : on nettoie
+    // et on génère un nouveau code au lieu de bloquer le numéro.
+    if (current || socketCreationTime.has(sanitizedNumber)) {
+        await resetPairing(sanitizedNumber);
     }
 
     await EmpirePair(number, res);
