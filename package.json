@@ -25,7 +25,7 @@
     "yt-search": "^2.12.1"
   },
   "engines": {
-    "node": ">=20.x"
+    "node": "22.x"
   },
   "keywords": [
     "whatsapp",
