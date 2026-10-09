@@ -1,6 +1,3 @@
-// Vercel : le disque est en lecture seule sauf /tmp -> les chemins relatifs (./session, ./*.json) pointent vers /tmp
-if (process.env.VERCEL) { try { process.chdir('/tmp'); } catch (e) {} }
-
 require('dotenv').config();
 
 const express = require('express');
