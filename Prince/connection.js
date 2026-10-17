@@ -151,21 +151,26 @@ const SessionSchema = new mongoose.Schema({
 const Session = mongoose.model('SessionNew', SessionSchema); 
 
 async function connectMongoDB() {
-    try {
-        
-const mongoUri = process.env.MONGODB_URI;
+    // Avant : process.exit(1) au moindre échec => Railway redémarre en boucle puis
+    // marque le service "Crashed". Maintenant : on réessaie toutes les 10 s sans
+    // jamais arrêter le serveur (le site de pairing reste accessible).
+    while (true) {
+        const mongoUri = process.env.MONGODB_URI;
         if (!mongoUri) {
-            console.error('MONGODB_URI is not set. Add it to your .env file.');
-            process.exit(1);
+            console.error('MONGODB_URI is not set. Ajoute-la dans les variables Railway (Variables).');
+        } else {
+            try {
+                await mongoose.connect(mongoUri, {
+                    bufferCommands: false,
+                    serverSelectionTimeoutMS: 10000
+                });
+                console.log('Connected to MongoDB');
+                return;
+            } catch (error) {
+                console.error('MongoDB connection failed (nouvel essai dans 10 s):', error.message);
+            }
         }
-        await mongoose.connect(mongoUri, {
-            bufferCommands: false,
-            serverSelectionTimeoutMS: 5000 
-        });
-        console.log('Connected to MongoDB');
-    } catch (error) {
-        console.error('MongoDB connection failed:', error);
-        process.exit(1);
+        await new Promise(r => setTimeout(r, 10000));
     }
 }
 (async () => {
@@ -844,6 +849,33 @@ async function EmpirePair(number, res) {
 
         socketCreationTime.set(sanitizedNumber, Date.now());
 
+        // Attendre que la connexion à WhatsApp soit réellement prête (événement "qr")
+        // avant de demander le code de pairing. Un simple délai fixe provoquait
+        // l'erreur 428 "Connection Closed" quand la connexion n'était pas encore ouverte.
+        let readyPromise = null;
+        if (!socket.authState.creds.registered) {
+            readyPromise = new Promise((resolve, reject) => {
+                const onUpdate = (u) => {
+                    if (u.qr) {
+                        clearTimeout(readyTimer);
+                        socket.ev.off('connection.update', onUpdate);
+                        resolve();
+                    } else if (u.connection === 'close') {
+                        clearTimeout(readyTimer);
+                        socket.ev.off('connection.update', onUpdate);
+                        const code = u.lastDisconnect?.error?.output?.statusCode;
+                        reject(new Error(`WhatsApp a fermé la connexion avant le pairing (code ${code})`));
+                    }
+                };
+                const readyTimer = setTimeout(() => {
+                    socket.ev.off('connection.update', onUpdate);
+                    reject(new Error('WhatsApp n\'a pas répondu à temps (connexion non prête)'));
+                }, 25000);
+                socket.ev.on('connection.update', onUpdate);
+            });
+            readyPromise.catch(() => {});
+        }
+
         if (!socket._handlersAttached) {
             socket._handlersAttached = true;
             setupCommandHandlers(socket, sanitizedNumber);
@@ -855,11 +887,12 @@ async function EmpirePair(number, res) {
         setupAutoRestart(socket, sanitizedNumber);
 
         if (!socket.authState.creds.registered) {
+            await readyPromise;
             let retries = config.MAX_RETRIES;
             let code;
             while (retries > 0) {
                 try {
-                    await delay(1500);
+                    await delay(500);
                     // Ne pas passer de code personnalisé fixe : WhatsApp génère un code
                     // aléatoire propre à chaque numéro. Réutiliser le même code pour tout
                     // le monde (ex. "INCONNUX") déclenche souvent un rejet côté serveur
@@ -2894,25 +2927,22 @@ router.get('/active', (req, res) => {
 });
 
 process.on('exit', () => {
-    activeSockets.forEach((socket, number) => {
-        socket.ws.close();
-        activeSockets.delete(number);
-        socketCreationTime.delete(number);
-    });
-    fs.emptyDirSync(SESSION_BASE_PATH);
+    try {
+        activeSockets.forEach((data, number) => {
+            try { data?.socket?.ws?.close(); } catch {}
+            activeSockets.delete(number);
+            socketCreationTime.delete(number);
+        });
+        fs.emptyDirSync(SESSION_BASE_PATH);
+    } catch {}
 });
 
 process.on('uncaughtException', (err) => {
-    console.error('Uncaught exception:', err);
-    // pm2 restart ne fait rien si le process n'est pas lancé via PM2 (ex: "npm
-    // start" tout court, comme dans package.json actuellement) : la commande
-    // échoue silencieusement et le bot reste planté. On tente quand même le
-    // restart PM2 (utile si PM2 est bien utilisé en prod), mais dans tous les
-    // cas on quitte le process : Render/Railway/Docker/PM2 redémarrent
-    // automatiquement un process qui s'arrête, alors qu'un process qui reste
-    // en vie dans un état cassé ne redémarre jamais tout seul.
-    try { exec(`pm2 restart ${process.env.PM2_NAME || 'dtz-mini-bot-session'}`); } catch {}
-    setTimeout(() => process.exit(1), 1000);
+    // Avant : le process quittait (exit 1) à la moindre exception, ce qui fait
+    // tomber tous les bots connectés et finit en "Crashed" sur Railway (limite de
+    // redémarrages). Baileys lève souvent des erreurs réseau passagères : on les
+    // journalise et on continue.
+    console.error('Uncaught exception (ignorée, le bot continue):', err);
 });
 
 process.on('unhandledRejection', (reason) => {
