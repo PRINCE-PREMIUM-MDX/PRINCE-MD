@@ -3,7 +3,7 @@ require('dotenv').config();
 const express = require('express');
 const path = require('path');
 const app = express();
-const PORT = process.env.PORT || 8000;
+const PORT = process.env.SERVER_PORT || process.env.PORT || 8000;
 const code = require('./Prince/connection');
 
 require('events').EventEmitter.defaultMaxListeners = 500;
@@ -18,7 +18,7 @@ app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
     console.log('========================================');
     console.log('        PRINCE-MD— ONLINE');
     console.log('        Port: ' + PORT);
